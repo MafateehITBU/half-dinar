@@ -1,0 +1,232 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Abu Al-Nas API",
+    "description": "Jordan e-commerce REST API — Arabic default, JOD currency.",
+    "version": "1.0.0"
+  },
+  "servers": [{ "url": "/api/v1", "description": "API v1" }],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Health check",
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register customer",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password", "firstName", "lastName", "ageConfirmed"],
+                "properties": {
+                  "email": { "type": "string" },
+                  "password": { "type": "string" },
+                  "firstName": { "type": "string" },
+                  "lastName": { "type": "string" },
+                  "phone": { "type": "string" },
+                  "ageConfirmed": { "type": "boolean" },
+                  "locale": { "type": "string", "enum": ["ar", "en"] },
+                  "referralCode": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "Created" } }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Tokens + user" } }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Current user (auth)",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "User" } }
+      }
+    },
+    "/users/me": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "Profile with addresses and loyalty balance",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Profile" } }
+      },
+      "patch": {
+        "tags": ["Users"],
+        "summary": "Update profile",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "firstName": { "type": "string" },
+                  "lastName": { "type": "string" },
+                  "phone": { "type": "string" },
+                  "locale": { "type": "string", "enum": ["ar", "en"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Updated user" } }
+      }
+    },
+    "/products": {
+      "get": {
+        "tags": ["Catalog"],
+        "summary": "List products",
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer" } },
+          { "name": "category", "in": "query", "schema": { "type": "string" } },
+          { "name": "sort", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Paginated products" } }
+      }
+    },
+    "/products/{slug}": {
+      "get": {
+        "tags": ["Catalog"],
+        "summary": "Product detail",
+        "parameters": [{ "name": "slug", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Product" } }
+      }
+    },
+    "/cart": {
+      "get": {
+        "tags": ["Cart"],
+        "summary": "Get cart",
+        "responses": { "200": { "description": "Cart" } }
+      }
+    },
+    "/checkout/place-order": {
+      "post": {
+        "tags": ["Checkout"],
+        "summary": "Place order",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "201": { "description": "Order created" } }
+      }
+    },
+    "/orders": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "My orders",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Order list" } }
+      }
+    },
+    "/orders/{id}": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "Order detail",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Order" } }
+      }
+    },
+    "/orders/{id}/invoice": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "Invoice (HTML, Arabic RTL — print to PDF)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "text/html invoice" } }
+      }
+    },
+    "/orders/{id}/invoice.pdf": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "Invoice PDF download",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "application/pdf" } }
+      }
+    },
+    "/admin/orders/{id}/invoice": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Admin invoice HTML",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "text/html" } }
+      }
+    },
+    "/loyalty": {
+      "get": {
+        "tags": ["Engagement"],
+        "summary": "Loyalty balance and history",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "Loyalty" } }
+      }
+    },
+    "/newsletter/subscribe": {
+      "post": {
+        "tags": ["Engagement"],
+        "summary": "Newsletter subscribe",
+        "responses": { "201": { "description": "Subscribed" } }
+      }
+    },
+    "/public/config": {
+      "get": {
+        "tags": ["Public"],
+        "summary": "Site config (analytics IDs, cookie text)",
+        "responses": { "200": { "description": "Config" } }
+      }
+    },
+    "/seo/sitemap.xml": {
+      "get": {
+        "tags": ["SEO"],
+        "summary": "Sitemap",
+        "responses": { "200": { "description": "XML sitemap" } }
+      }
+    }
+  }
+}

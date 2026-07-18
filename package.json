@@ -1,0 +1,26 @@
+{
+  "name": "half-dinar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Abu Al-Nas (ابو النص) — Jordan e-commerce platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev:api",
+    "dev:api": "npm run dev -w @half-dinar/api",
+    "dev:storefront": "npm run dev -w @half-dinar/storefront",
+    "dev:admin": "npm run dev -w @half-dinar/admin",
+    "build": "npm run build -w @half-dinar/shared && npm run build -w @half-dinar/api && npm run build -w @half-dinar/storefront && npm run build -w @half-dinar/admin",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "npm run db:migrate -w @half-dinar/api",
+    "db:seed": "npm run db:seed -w @half-dinar/api",
+    "db:studio": "npm run db:studio -w @half-dinar/api",
+    "sync:brand": "node scripts/sync-brand-logos.mjs"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

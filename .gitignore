@@ -1,0 +1,13 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+.env.*.local
+!.env.example
+*.log
+.DS_Store
+coverage/
+.turbo/
+.vite/
+*.tsbuildinfodeploy/.env.infra

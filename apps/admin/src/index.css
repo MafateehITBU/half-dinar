@@ -1,0 +1,188 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand-green: #0b4745;
+  --brand-green-dark: #062e2d;
+  --brand-gold: #dcbb87;
+  --brand-gold-light: #ede4c9;
+  --brand-cream: #faf7f2;
+  --brand-sand: #e8dfc8;
+  --brand-ink: #0a2e2c;
+}
+
+@layer base {
+  body {
+    @apply antialiased;
+    font-family: 'Tajawal', 'Cairo', system-ui, sans-serif;
+    color: var(--brand-ink);
+    background-color: var(--brand-cream);
+  }
+}
+
+@layer components {
+  .admin-card {
+    @apply rounded-2xl border bg-white shadow-sm;
+    border-color: var(--brand-sand);
+  }
+
+  .admin-table {
+    @apply w-full text-sm text-right;
+  }
+
+  .admin-table thead {
+    background-color: rgba(232, 242, 242, 0.8);
+    color: var(--brand-green);
+  }
+
+  .admin-table th {
+    @apply px-4 py-3 font-semibold;
+  }
+
+  .admin-table td {
+    @apply border-t px-4 py-3;
+    border-color: var(--brand-sand);
+  }
+
+  .admin-table tbody tr:hover {
+    background-color: rgba(232, 242, 242, 0.5);
+  }
+
+  .admin-table tbody tr.is-selected {
+    background-color: rgba(11, 71, 69, 0.08);
+  }
+
+  .admin-table tbody tr.is-selected:hover {
+    background-color: rgba(11, 71, 69, 0.12);
+  }
+
+  .admin-table .col-checkbox {
+    width: 44px;
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  .admin-table .col-actions {
+    width: 1%;
+    white-space: nowrap;
+  }
+
+  .table-checkbox {
+    @apply h-4 w-4 rounded border-2 cursor-pointer accent-[var(--brand-green)];
+    border-color: var(--brand-sand);
+  }
+
+  .table-checkbox:disabled {
+    @apply cursor-not-allowed opacity-40;
+  }
+
+  .bulk-actions-bar {
+    @apply flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3;
+    border-color: var(--brand-sand);
+    background: linear-gradient(135deg, rgba(232, 242, 242, 0.95) 0%, rgba(250, 247, 242, 0.98) 100%);
+  }
+
+  .table-actions {
+    @apply flex flex-wrap items-center gap-1;
+  }
+
+  .table-action-btn {
+    @apply inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .table-action-btn--default {
+    @apply text-slate-600 hover:bg-slate-100;
+  }
+
+  .table-action-btn--edit {
+    color: var(--brand-green);
+    background-color: rgba(232, 242, 242, 0.6);
+  }
+  .table-action-btn--edit:hover:not(:disabled) {
+    background-color: rgba(232, 242, 242, 1);
+  }
+
+  .table-action-btn--warning {
+    @apply text-amber-800 bg-amber-50 hover:bg-amber-100;
+  }
+
+  .table-action-btn--danger {
+    @apply text-red-700 bg-red-50 hover:bg-red-100;
+  }
+
+  .text-brand-green {
+    color: var(--brand-green);
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition disabled:opacity-50;
+    background: linear-gradient(135deg, var(--brand-green) 0%, var(--brand-green-dark) 100%);
+    color: var(--brand-gold-light);
+    box-shadow: 0 4px 14px -4px rgba(11, 71, 69, 0.4);
+  }
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(1.06);
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 bg-white px-4 py-2.5 text-sm font-semibold transition disabled:opacity-50;
+    border-color: var(--brand-sand);
+    color: var(--brand-ink);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    border-color: var(--brand-green);
+    background-color: #e8f2f2;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-50;
+  }
+
+  .input-field {
+    @apply w-full rounded-xl border-2 bg-white px-3 py-2.5 text-sm outline-none transition;
+    border-color: var(--brand-sand);
+  }
+  .input-field:focus {
+    border-color: var(--brand-green);
+    box-shadow: 0 0 0 3px rgba(11, 71, 69, 0.12);
+  }
+
+  .select-field {
+    @apply input-field;
+  }
+
+  .logo-wrap-light {
+    @apply inline-flex items-center rounded-xl px-3 py-2;
+    background-color: var(--brand-cream);
+    box-shadow: 0 0 0 1px rgba(220, 187, 135, 0.55);
+  }
+
+  .logo-wrap-elevated {
+    box-shadow:
+      0 0 0 1px rgba(220, 187, 135, 0.65),
+      0 4px 24px -6px rgba(11, 71, 69, 0.12);
+  }
+
+  .admin-swal-popup {
+    @apply rounded-2xl;
+    font-family: 'Tajawal', 'Cairo', system-ui, sans-serif !important;
+  }
+
+  .admin-swal-title {
+    color: var(--brand-ink) !important;
+    font-weight: 700 !important;
+  }
+
+  .admin-swal-text {
+    color: #475569 !important;
+  }
+
+  .admin-swal-btn {
+    @apply rounded-xl px-5 py-2.5 text-sm font-bold !important;
+  }
+}
