@@ -23,6 +23,13 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Prisma generate
+        working-directory: apps/api
+        run: npx prisma generate
+        env:
+          # Dummy URL — generate does not connect to the DB
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
+
       - name: Build packages
         run: |
           npm run build -w @half-dinar/shared
@@ -32,3 +39,4 @@ jobs:
         env:
           # Build-time placeholders (production keys live on the VPS)
           VITE_STRIPE_PUBLISHABLE_KEY: pk_test_ci_placeholder
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
