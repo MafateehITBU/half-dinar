@@ -13,6 +13,11 @@ import { errorHandler, notFoundHandler } from './presentation/middleware/error.m
 export function createApp() {
   const app = express();
 
+  // Nginx terminates TLS and sets X-Forwarded-*; required for rate-limit + secure cookies
+  if (env.isProduction) {
+    app.set('trust proxy', 1);
+  }
+
   app.use(
     helmet({
       contentSecurityPolicy: env.isProduction,

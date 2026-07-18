@@ -12,7 +12,12 @@ export const analyticsService = {
         createdAt: { gte: since },
         status: { notIn: ['cancelled'] },
       },
-      include: { items: true },
+      select: {
+        id: true,
+        status: true,
+        total: true,
+        createdAt: true,
+      },
     });
 
     const revenue = orders.reduce((s, o) => s + decimalToNumber(o.total), 0);
