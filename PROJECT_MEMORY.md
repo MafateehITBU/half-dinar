@@ -1,8 +1,8 @@
 # PROJECT MEMORY — Abu Al-Nas (ابو النص) E-Commerce
 
-> **Last updated:** 2026-06-04  
+> **Last updated:** 2026-07-18  
 > **Repo:** `half-dinar`  
-> **Status:** Phases 1–3 complete (MVP + growth + engagement). Ops/deploy (Phase 4) not started.
+> **Status:** Phases 1–3 complete. Phase 4 in progress — VPS live at `abualnus.com` (HTTPS), GitHub Actions deploy ready; `admin`/`api` DNS + SSL pending.
 
 Read this file first in every new session before touching the codebase.
 
@@ -457,3 +457,4 @@ npm run dev:admin                # http://localhost:5174
 |------|--------|
 | 2026-06-04 | Discovery completed; docs created |
 | 2026-06-04 | Sprint 2: shipping zones, checkout, COD/Stripe orders, timeline, admin orders |
+| 2026-07-18 | Production VPS `46.202.153.60`: Docker infra, Nginx, PM2 API, Certbot for `abualnus.com`/`www`; GitHub Actions CI/CD; DNS needed for `admin` + `api` |
