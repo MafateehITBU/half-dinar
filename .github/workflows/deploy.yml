@@ -25,9 +25,14 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          # Prefer accept-new over keyscan (keyscan can fail intermittently on some VPS firewalls)
+          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+            -o ConnectTimeout=15 "root@${DEPLOY_HOST}" 'echo ssh_ok' || \
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+            -o ConnectTimeout=15 "${{ secrets.DEPLOY_USER }}@${DEPLOY_HOST}" 'echo ssh_ok'
 
       - name: Sync code to server
         env:
@@ -35,7 +40,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
           rsync -az --delete \
-            -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes" \
+            -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
             --exclude '.git/' \
             --exclude 'node_modules/' \
             --exclude '**/node_modules/' \
@@ -47,6 +52,7 @@ jobs:
             --exclude '.env' \
             --exclude '.cursor/' \
             --exclude 'agent-transcripts/' \
+            --exclude 'policy/' \
             ./ "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/abualnus/"
 
       - name: Remote build & reload
@@ -54,6 +60,6 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes \
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
             "${DEPLOY_USER}@${DEPLOY_HOST}" \
             'bash /var/www/abualnus/deploy/remote-deploy.sh'
