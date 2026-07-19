@@ -83,6 +83,30 @@ Key groups:
 
 - Certbot auto-renew
 - Force HTTPS redirects at Nginx
+- **TLS 1.0 & 1.1 disabled** (KYC / PCI) — only `TLSv1.2` and `TLSv1.3`
+- HSTS enabled on storefront + admin
+
+Verify:
+```bash
+openssl s_client -connect abualnus.com:443 -tls1_1   # must fail
+openssl s_client -connect abualnus.com:443 -tls1_2   # must succeed
+```
+
+## Payment-gateway KYC — website checklist
+
+| Requirement | Status | URL |
+|-------------|--------|-----|
+| Terms & Conditions | ✅ | https://abualnus.com/pages/terms-and-conditions |
+| Privacy Policy | ✅ | https://abualnus.com/pages/privacy-policy |
+| Shipping / Delivery Policy | ✅ | https://abualnus.com/pages/shipping-policy |
+| Pricing / Services Policy | ✅ | https://abualnus.com/pages/pricing-policy |
+| Cancellation / Refund Policy | ✅ | https://abualnus.com/pages/cancellation-policy |
+| About / company page | ✅ | https://abualnus.com/pages/about |
+| Contact page | ✅ | https://abualnus.com/contact |
+| HTTPS + modern TLS only | ✅ | TLS 1.2 / 1.3 |
+| Policies editable (AR + EN) | ✅ | https://admin.abualnus.com/cms → السياسات القانونية |
+
+Editable later from the admin CMS without redeploying.
 
 ## Stripe (test mode)
 
