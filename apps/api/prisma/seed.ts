@@ -482,6 +482,22 @@ async function main() {
     },
   });
 
+  const { POLICY_PAGES } = await import('./seed-policies.js');
+  console.log('Seeding legal policy pages...');
+  for (const page of POLICY_PAGES) {
+    await prisma.cmsPage.upsert({
+      where: { slug: page.slug },
+      update: {
+        type: page.type,
+        titleAr: page.titleAr,
+        titleEn: page.titleEn,
+        bodyAr: page.bodyAr,
+        bodyEn: page.bodyEn,
+      },
+      create: page,
+    });
+  }
+
   await prisma.faq.deleteMany({});
   await prisma.faq.createMany({
     data: [

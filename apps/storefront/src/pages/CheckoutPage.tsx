@@ -335,6 +335,25 @@ export function CheckoutPage() {
                   <label className="label-field">ملاحظات (اختياري)</label>
                   <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="input-field" rows={2} />
                 </div>
+                <p className="text-xs leading-relaxed text-brand-muted">
+                  بإتمام الطلب فإنك توافق على{' '}
+                  <Link to="/pages/terms-and-conditions" className="text-primary underline" target="_blank">
+                    الشروط والأحكام
+                  </Link>
+                  ،{' '}
+                  <Link to="/pages/privacy-policy" className="text-primary underline" target="_blank">
+                    سياسة الخصوصية
+                  </Link>
+                  ،{' '}
+                  <Link to="/pages/shipping-policy" className="text-primary underline" target="_blank">
+                    سياسة الشحن
+                  </Link>
+                  ، و
+                  <Link to="/pages/cancellation-policy" className="text-primary underline" target="_blank">
+                    سياسة الإلغاء
+                  </Link>
+                  .
+                </p>
                 {error && <p className="text-sm text-red-600">{error}</p>}
                 <div className="flex gap-3">
                   <button type="button" onClick={() => setStep(1)} className="btn-secondary flex-1">رجوع</button>

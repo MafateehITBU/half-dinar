@@ -156,10 +156,25 @@ export function LoginPage() {
                 {mode === 'register' && <p className="mt-1 text-xs text-brand-muted">8+ أحرف، حرف كبير وصغير ورقم</p>}
               </div>
               {mode === 'register' && (
-                <label className="flex items-center gap-2 text-sm text-brand-ink">
-                  <input type="checkbox" required defaultChecked className="rounded border-brand-sand text-primary-600" />
-                  أؤكد أن عمري 13 سنة أو أكثر
-                </label>
+                <>
+                  <label className="flex items-start gap-2 text-sm text-brand-ink">
+                    <input type="checkbox" required defaultChecked className="mt-0.5 rounded border-brand-sand text-primary-600" />
+                    أؤكد أن عمري 13 سنة أو أكثر
+                  </label>
+                  <label className="flex items-start gap-2 text-sm text-brand-ink">
+                    <input type="checkbox" required className="mt-0.5 rounded border-brand-sand text-primary-600" />
+                    <span>
+                      أوافق على{' '}
+                      <Link to="/pages/terms-and-conditions" className="text-primary underline" target="_blank">
+                        الشروط والأحكام
+                      </Link>{' '}
+                      و
+                      <Link to="/pages/privacy-policy" className="text-primary underline" target="_blank">
+                        سياسة الخصوصية
+                      </Link>
+                    </span>
+                  </label>
+                </>
               )}
               {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 ring-1 ring-red-100">{error}</p>}
               <button type="submit" className="btn-primary w-full py-3.5">

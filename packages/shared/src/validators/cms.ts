@@ -21,7 +21,9 @@ export const createCmsPageSchema = z.object({
   titleEn: z.string().min(1).max(200),
   bodyAr: z.string().min(1),
   bodyEn: z.string().min(1),
-  type: z.enum(['about', 'terms', 'privacy', 'refund', 'custom']).default('custom'),
+  type: z
+    .enum(['about', 'terms', 'privacy', 'refund', 'shipping', 'pricing', 'cancellation', 'custom'])
+    .default('custom'),
 });
 
 export const updateCmsPageSchema = createCmsPageSchema.partial();

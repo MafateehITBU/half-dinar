@@ -24,6 +24,16 @@ const FOOTER_LINKS = [
     ],
   },
   {
+    title: 'السياسات',
+    links: [
+      { to: '/pages/terms-and-conditions', label: 'الشروط والأحكام', icon: 'mdi:file-document-outline' },
+      { to: '/pages/privacy-policy', label: 'سياسة الخصوصية', icon: 'mdi:shield-lock-outline' },
+      { to: '/pages/shipping-policy', label: 'التوصيل والشحن', icon: 'mdi:truck-outline' },
+      { to: '/pages/pricing-policy', label: 'الأسعار والخدمات', icon: 'mdi:tag-outline' },
+      { to: '/pages/cancellation-policy', label: 'إلغاء الطلبات', icon: 'mdi:cancel' },
+    ],
+  },
+  {
     title: 'الحساب',
     links: [
       { to: '/login', label: 'تسجيل الدخول', icon: 'mdi:login' },
