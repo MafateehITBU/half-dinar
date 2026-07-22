@@ -32,6 +32,36 @@ else
 fi
 pm2 save
 
+echo "==> Ensure SPA HTML is not cached"
+python3 - <<'PY'
+from pathlib import Path
+import re
+
+needle = 'no-store, no-cache, must-revalidate'
+markers = ('staging.mawjood.online', 'dashboard.staging.mawjood.online')
+root = Path('/etc/nginx/sites-enabled')
+if not root.is_dir():
+    root = Path('/etc/nginx/conf.d')
+
+for path in sorted(root.glob('*')):
+    if not path.is_file():
+        continue
+    text = path.read_text(encoding='utf-8', errors='ignore')
+    if needle in text:
+        continue
+    if not any(m in text for m in markers):
+        continue
+    updated, n = re.subn(
+        r'(location\s+/\s*\{)',
+        r'\1\n        add_header Cache-Control "no-store, no-cache, must-revalidate";',
+        text,
+        count=1,
+    )
+    if n:
+        path.write_text(updated, encoding='utf-8')
+        print(f'patched {path}')
+PY
+
 echo "==> Nginx reload"
 nginx -t && systemctl reload nginx
 

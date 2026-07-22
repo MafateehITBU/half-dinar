@@ -8,17 +8,32 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
+function decodeBasicEntities(value: string): string {
+  return value
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
 /** Legacy plain text → safe HTML; already-HTML passes through (then sanitized). */
 export function toDisplayHtml(value: string): string {
   if (!value) return '';
-  if (/<\/?[a-z][\s\S]*>/i.test(value)) return value;
-  return escapeHtml(value).replace(/\n/g, '<br>');
+  // Handle accidentally double-escaped HTML from older saves/clients
+  let html = value;
+  if (/&lt;\/?[a-z]/i.test(html) && !/<\/?[a-z][\s\S]*>/i.test(html)) {
+    html = decodeBasicEntities(html);
+  }
+  if (/<\/?[a-z][\s\S]*>/i.test(html)) return html;
+  return escapeHtml(html).replace(/\n/g, '<br>');
 }
 
 /** Strip tags for meta / lead snippets. */
 export function stripHtml(value: string): string {
   if (!value) return '';
-  return value
+  const decoded = /&lt;\/?[a-z]/i.test(value) ? decodeBasicEntities(value) : value;
+  return decoded
     .replace(/<[^>]*>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
@@ -65,7 +80,6 @@ export function RichText({ html, className = '', dir, as: Tag = 'div' }: RichTex
   const clean = DOMPurify.sanitize(toDisplayHtml(html), {
     ALLOWED_TAGS,
     ALLOWED_ATTR,
-    ALLOWED_URI_REGEXP: /^$/, // no URLs in attributes for now
   });
 
   // Only allow inline color styles (block XSS via style)
