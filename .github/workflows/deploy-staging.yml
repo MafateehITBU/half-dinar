@@ -1,0 +1,62 @@
+name: Deploy staging
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy staging to VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+            -o ConnectTimeout=15 "${{ secrets.DEPLOY_USER }}@${DEPLOY_HOST}" 'echo ssh_ok'
+
+      - name: Sync code to staging
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+            --exclude '.git/' \
+            --exclude 'node_modules/' \
+            --exclude '**/node_modules/' \
+            --exclude '**/dist/' \
+            --exclude 'apps/api/.env' \
+            --exclude 'apps/storefront/.env' \
+            --exclude 'apps/admin/.env' \
+            --exclude 'deploy/.env.infra' \
+            --exclude 'deploy/.env.staging.infra' \
+            --exclude '.env' \
+            --exclude 'policy/' \
+            --exclude '.cursor/' \
+            ./ "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/mawjood-staging/"
+
+      - name: Remote build & reload staging
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            'bash /var/www/mawjood-staging/deploy/remote-deploy-staging.sh'

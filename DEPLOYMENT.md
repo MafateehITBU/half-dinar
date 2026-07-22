@@ -2,11 +2,33 @@
 
 ## Environments
 
-| Environment | Purpose |
-|-------------|---------|
-| development | Local machine + Docker Compose |
-| staging | VPS pre-production |
-| production | Live VPS |
+| Environment | Purpose | URL |
+|-------------|---------|-----|
+| development | Local machine + Docker Compose | localhost |
+| staging | Pre-production on VPS | https://staging.mawjood.online |
+| production | Live VPS | https://mawjood.online |
+
+### Staging URLs
+
+| App | URL |
+|-----|-----|
+| Store | https://staging.mawjood.online |
+| Dashboard | https://dashboard.staging.mawjood.online |
+| API | https://api.staging.mawjood.online |
+
+**Staging admin (seed):** `admin@staging.mawjood.online` / `StagingAdmin123!ChangeMe`
+
+### Staging workflow
+
+1. Develop on a feature branch locally  
+2. Merge into Git branch **`staging`**  
+3. GitHub Action **Deploy staging** syncs → builds → migrates → reloads PM2 `mawjood-api-staging`  
+4. Test on staging URLs  
+5. Merge **`staging` → `main`** to deploy production  
+
+App root on server: `/var/www/mawjood-staging`  
+Infra: `docker compose -f docker-compose.staging.yml --env-file deploy/.env.staging.infra up -d`  
+Deploy script: `deploy/remote-deploy-staging.sh`
 
 ## Local development (current phase)
 
@@ -63,7 +85,8 @@ Key groups:
 ## CI/CD — GitHub Actions
 
 - **CI** (`.github/workflows/ci.yml`): on PR/push to `main` — install + build
-- **Deploy** (`.github/workflows/deploy.yml`): on push to `main` — rsync → remote build → migrate → PM2 reload
+- **Deploy production** (`.github/workflows/deploy.yml`): on push to `main`
+- **Deploy staging** (`.github/workflows/deploy-staging.yml`): on push to `staging`
 
 ### GitHub secrets (Settings → Secrets → Actions)
 

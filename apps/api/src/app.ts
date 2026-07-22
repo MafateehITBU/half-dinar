@@ -14,7 +14,7 @@ export function createApp() {
   const app = express();
 
   // Nginx terminates TLS and sets X-Forwarded-*; required for rate-limit + secure cookies
-  if (env.isProduction) {
+  if (env.NODE_ENV !== 'development') {
     app.set('trust proxy', 1);
   }
 
