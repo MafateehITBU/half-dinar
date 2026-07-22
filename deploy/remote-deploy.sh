@@ -27,11 +27,31 @@ npx prisma migrate deploy
 cd "$APP_DIR"
 
 echo "==> Reload API (PM2)"
-if pm2 describe abualnus-api >/dev/null 2>&1; then
-  pm2 reload deploy/ecosystem.config.cjs --env production
-else
-  pm2 start deploy/ecosystem.config.cjs --env production
-fi
+reload_pm2() {
+  local attempt=1
+  local max=5
+  while true; do
+    if pm2 describe abualnus-api >/dev/null 2>&1; then
+      if pm2 reload deploy/ecosystem.config.cjs --env production; then
+        break
+      fi
+    else
+      if pm2 start deploy/ecosystem.config.cjs --env production; then
+        break
+      fi
+    fi
+    if (( attempt >= max )); then
+      echo "PM2 reload failed after ${max} attempts — forcing"
+      pm2 reload deploy/ecosystem.config.cjs --env production --force || \
+        pm2 startOrReload deploy/ecosystem.config.cjs --env production
+      break
+    fi
+    echo "PM2 busy (attempt ${attempt}/${max}), waiting 15s..."
+    sleep 15
+    attempt=$((attempt + 1))
+  done
+}
+reload_pm2
 pm2 save
 
 echo "==> Ensure SPA HTML is not cached (index.html / client routes)"

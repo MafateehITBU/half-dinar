@@ -25,11 +25,31 @@ npx prisma migrate deploy
 cd "$APP_DIR"
 
 echo "==> Reload staging API"
-if pm2 describe mawjood-api-staging >/dev/null 2>&1; then
-  pm2 reload deploy/ecosystem.staging.config.cjs
-else
-  pm2 start deploy/ecosystem.staging.config.cjs
-fi
+reload_pm2_staging() {
+  local attempt=1
+  local max=5
+  while true; do
+    if pm2 describe mawjood-api-staging >/dev/null 2>&1; then
+      if pm2 reload deploy/ecosystem.staging.config.cjs; then
+        break
+      fi
+    else
+      if pm2 start deploy/ecosystem.staging.config.cjs; then
+        break
+      fi
+    fi
+    if (( attempt >= max )); then
+      echo "PM2 reload failed after ${max} attempts — forcing"
+      pm2 reload deploy/ecosystem.staging.config.cjs --force || \
+        pm2 startOrReload deploy/ecosystem.staging.config.cjs
+      break
+    fi
+    echo "PM2 busy (attempt ${attempt}/${max}), waiting 15s..."
+    sleep 15
+    attempt=$((attempt + 1))
+  done
+}
+reload_pm2_staging
 pm2 save
 
 echo "==> Ensure SPA HTML is not cached"
