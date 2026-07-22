@@ -157,15 +157,15 @@
   }
 
   .logo-wrap-light {
-    @apply inline-flex items-center rounded-xl px-3 py-2;
-    background-color: var(--brand-cream);
-    box-shadow: 0 0 0 1px rgba(220, 187, 135, 0.55);
+    @apply inline-flex items-center rounded-xl px-2 py-1.5;
+    background-color: #000000;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
   }
 
   .logo-wrap-elevated {
     box-shadow:
-      0 0 0 1px rgba(220, 187, 135, 0.65),
-      0 4px 24px -6px rgba(11, 71, 69, 0.12);
+      0 0 0 1px rgba(255, 255, 255, 0.12),
+      0 4px 24px -6px rgba(0, 0, 0, 0.35);
   }
 
   .admin-swal-popup {

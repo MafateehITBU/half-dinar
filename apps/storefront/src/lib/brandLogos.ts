@@ -1,10 +1,8 @@
-/** Canonical logos — edit files in apps/storefront/assets/, then run: npm run sync:brand */
-import logoHorizontal from '../../assets/LOGO done-02.png';
-import logoStacked from '../../assets/LOGO done-01.png';
-import logoAlt from '../../assets/LOGO done-03.png';
+/** Canonical logo — edit apps/storefront/assets/LOGO.png, then run: npm run sync:brand */
+import logo from '../../assets/LOGO.png';
 
 export const BRAND_LOGOS = {
-  horizontal: logoHorizontal,
-  stacked: logoStacked,
-  alt: logoAlt,
+  horizontal: logo,
+  stacked: logo,
+  alt: logo,
 } as const;

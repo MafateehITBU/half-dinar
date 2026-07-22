@@ -145,8 +145,8 @@ async function main() {
     { key: 'meta_pixel_id', value: '' },
     { key: 'cookie_banner_text_ar', value: 'نستخدم ملفات تعريف الارتباط لتحسين تجربتك وتحليل الزيارات.' },
     { key: 'cookie_banner_text_en', value: 'We use cookies to improve your experience and analyze traffic.' },
-    { key: 'store_name_ar', value: 'ابو النص' },
-    { key: 'store_name_en', value: 'Abu Al-Nas' },
+    { key: 'store_name_ar', value: 'موجود' },
+    { key: 'store_name_en', value: 'MawJooD' },
     { key: 'currency', value: 'JOD' },
   ];
 

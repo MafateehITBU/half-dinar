@@ -109,8 +109,8 @@ export const JORDAN_GOVERNORATES = [
 ] as const;
 
 export const BRAND = {
-  nameAr: 'النص أونلاين',
-  nameEn: 'Al-Nass Online',
+  nameAr: 'موجود',
+  nameEn: 'MawJooD',
   currency: 'JOD',
   country: 'JO',
 } as const;
