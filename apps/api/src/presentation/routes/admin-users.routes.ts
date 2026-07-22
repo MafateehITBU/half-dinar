@@ -13,6 +13,7 @@ import {
   asyncHandler,
   authenticate,
   requirePermission,
+  type AuthenticatedRequest,
 } from '../middleware/auth.middleware.js';
 
 export const adminUsersRouter = Router();
@@ -54,7 +55,8 @@ adminUsersRouter.post(
   requirePermission(PERMISSIONS.CUSTOMERS_WRITE),
   asyncHandler(async (req, res) => {
     const input = adminCreateUserSchema.parse(req.body);
-    const data = await adminUserService.create(input);
+    const actor = (req as AuthenticatedRequest).user!;
+    const data = await adminUserService.create(input, actor.roles);
     res.status(201).json({ data });
   }),
 );
@@ -65,7 +67,8 @@ adminUsersRouter.patch(
   requirePermission(PERMISSIONS.CUSTOMERS_WRITE),
   asyncHandler(async (req, res) => {
     const input = adminUpdateUserSchema.parse(req.body);
-    const data = await adminUserService.update(param(req.params.id), input);
+    const actor = (req as AuthenticatedRequest).user!;
+    const data = await adminUserService.update(param(req.params.id), input, actor.roles);
     res.json({ data });
   }),
 );

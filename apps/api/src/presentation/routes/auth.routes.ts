@@ -29,7 +29,8 @@ authRouter.post(
   '/login',
   asyncHandler(async (req, res) => {
     const input = loginSchema.parse(req.body);
-    const result = await authService.login(input.email, input.password);
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const result = await authService.login(input.email, input.password, ip);
     res.json(result);
   }),
 );

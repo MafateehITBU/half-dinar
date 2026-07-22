@@ -16,7 +16,7 @@ function getCartHeaders(): HeadersInit {
   return token ? { 'X-Cart-Token': token } : {};
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     credentials: 'include',
@@ -30,6 +30,29 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   const cartToken = res.headers.get('X-Cart-Token');
   if (cartToken) localStorage.setItem('cartToken', cartToken);
+
+  if (res.status === 401 && !retried && !path.startsWith('/auth/')) {
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (refreshToken) {
+      try {
+        const refreshRes = await fetch(`${API_BASE}/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken }),
+        });
+        if (refreshRes.ok) {
+          const data = (await refreshRes.json()) as {
+            tokens: { accessToken: string; refreshToken: string };
+          };
+          saveAuthTokens(data.tokens.accessToken, data.tokens.refreshToken);
+          return request<T>(path, options, true);
+        }
+      } catch {
+        // fall through to logout
+      }
+    }
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

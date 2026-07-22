@@ -101,6 +101,32 @@ export function requirePermission(...permissions: string[]) {
   };
 }
 
+export function requireSuperAdmin(
+  req: AuthenticatedRequest,
+  _res: Response,
+  next: NextFunction,
+): void {
+  if (!req.user?.roles.includes(ROLES.SUPER_ADMIN)) {
+    next(new AppError(403, ErrorCodes.FORBIDDEN, 'Super Admin access required'));
+    return;
+  }
+  next();
+}
+
+export function requireStaff(
+  req: AuthenticatedRequest,
+  _res: Response,
+  next: NextFunction,
+): void {
+  const roles = req.user?.roles ?? [];
+  const isStaff = roles.some((r) => r !== ROLES.CUSTOMER);
+  if (!isStaff) {
+    next(new AppError(403, ErrorCodes.FORBIDDEN, 'Staff access required'));
+    return;
+  }
+  next();
+}
+
 export function asyncHandler(
   fn: (req: Request, res: Response, next: NextFunction) => Promise<void>,
 ) {

@@ -10,5 +10,6 @@ build/
 coverage/
 .turbo/
 .vite/
-*.tsbuildinfodeploy/.env.infra
+*.tsbuildinfo
+deploy/.env.infra
 deploy/.env.staging.infra

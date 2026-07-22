@@ -16,7 +16,7 @@
 | Dashboard | https://dashboard.staging.mawjood.online |
 | API | https://api.staging.mawjood.online |
 
-**Staging admin (seed):** `admin@staging.mawjood.online` / `StagingAdmin123!ChangeMe`
+**Staging admin:** set via `SEED_SUPER_ADMIN_EMAIL` / `SEED_SUPER_ADMIN_PASSWORD` on the VPS (rotate after first seed; do not commit plaintext passwords).
 
 ### Staging workflow
 

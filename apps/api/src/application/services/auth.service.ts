@@ -206,7 +206,12 @@ export const authService = {
     return issueTokens(user);
   },
 
-  async login(email: string, password: string): Promise<AuthResponse> {
+  async login(email: string, password: string, ip = 'unknown'): Promise<AuthResponse> {
+    const { assertNotLocked, clearLoginFailures, recordLoginFailure } = await import(
+      './login-lockout.service.js'
+    );
+    await assertNotLocked(email);
+
     const user = await prisma.user.findUnique({
       where: { email },
       include: {
@@ -223,14 +228,17 @@ export const authService = {
     });
 
     if (!user || !user.isActive) {
+      await recordLoginFailure(email, ip);
       throw new AppError(401, ErrorCodes.UNAUTHORIZED, 'Invalid email or password');
     }
 
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
+      await recordLoginFailure(email, ip);
       throw new AppError(401, ErrorCodes.UNAUTHORIZED, 'Invalid email or password');
     }
 
+    await clearLoginFailures(email, ip);
     return issueTokens(user);
   },
 
@@ -336,6 +344,16 @@ export const authService = {
       prisma.passwordResetToken.update({
         where: { id: record.id },
         data: { usedAt: new Date() },
+      }),
+      // Invalidate unused reset tokens for this user
+      prisma.passwordResetToken.updateMany({
+        where: { userId: record.userId, usedAt: null, id: { not: record.id } },
+        data: { usedAt: new Date() },
+      }),
+      // Revoke all refresh sessions after password change
+      prisma.refreshToken.updateMany({
+        where: { userId: record.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
       }),
     ]);
   },

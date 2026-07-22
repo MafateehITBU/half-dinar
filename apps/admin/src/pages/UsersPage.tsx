@@ -1,7 +1,9 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Icon } from '@iconify/react';
 import type { AdminCreateUserInput, AdminUpdateUserInput, AdminUserSummary } from '@half-dinar/shared';
-import { ROLES } from '@half-dinar/shared';
+import { ASSIGNABLE_ROLE_SLUGS, ROLES } from '@half-dinar/shared';
+
+type AssignableRole = (typeof ASSIGNABLE_ROLE_SLUGS)[number];
 import { AdminLayout } from '../components/AdminLayout';
 import { PageHeader } from '../components/ui/PageHeader';
 import { DataTable, type BulkAction, type Column } from '../components/ui/DataTable';
@@ -40,7 +42,7 @@ type FormState = {
   locale: 'ar' | 'en';
   isActive: boolean;
   emailVerified: boolean;
-  roles: string[];
+  roles: AssignableRole[];
 };
 
 const emptyForm = (): FormState => ({
@@ -107,13 +109,15 @@ export function UsersPage() {
       locale: user.locale,
       isActive: user.isActive,
       emailVerified: user.emailVerified,
-      roles: [...user.roles],
+      roles: user.roles.filter((r): r is AssignableRole =>
+        (ASSIGNABLE_ROLE_SLUGS as readonly string[]).includes(r),
+      ),
     });
     setFormError('');
     setModal('edit');
   };
 
-  const toggleRole = (slug: string) => {
+  const toggleRole = (slug: AssignableRole) => {
     setForm((f) => {
       const has = f.roles.includes(slug);
       if (has) return { ...f, roles: f.roles.filter((r) => r !== slug) };
@@ -433,14 +437,16 @@ export function UsersPage() {
                   <label
                     key={r.slug}
                     className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm ${
-                      form.roles.includes(r.slug) ? 'border-primary bg-primary-50 text-primary-800' : 'border-slate-200'
+                      form.roles.includes(r.slug as AssignableRole)
+                        ? 'border-primary bg-primary-50 text-primary-800'
+                        : 'border-slate-200'
                     }`}
                   >
                     <input
                       type="checkbox"
                       className="sr-only"
-                      checked={form.roles.includes(r.slug)}
-                      onChange={() => toggleRole(r.slug)}
+                      checked={form.roles.includes(r.slug as AssignableRole)}
+                      onChange={() => toggleRole(r.slug as AssignableRole)}
                     />
                     {r.nameAr ?? ROLE_LABELS[r.slug]}
                   </label>

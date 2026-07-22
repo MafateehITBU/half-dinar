@@ -123,16 +123,26 @@ export const cmsService = {
     bodyEn: string;
     type: string;
   }) {
+    const { sanitizeRichText } = await import('../../shared/sanitize-html.js');
     const slug =
       input.slug ??
       (await uniqueSlug(input.titleEn, async (s) => Boolean(await prisma.cmsPage.findUnique({ where: { slug: s } }))));
     return prisma.cmsPage.create({
-      data: { slug, titleAr: input.titleAr, titleEn: input.titleEn, bodyAr: input.bodyAr, bodyEn: input.bodyEn, type: input.type },
+      data: {
+        slug,
+        titleAr: input.titleAr,
+        titleEn: input.titleEn,
+        bodyAr: sanitizeRichText(input.bodyAr),
+        bodyEn: sanitizeRichText(input.bodyEn),
+        type: input.type,
+      },
     });
   },
 
   async updatePage(id: string, data: Record<string, unknown>) {
-    return prisma.cmsPage.update({ where: { id }, data: data as never });
+    const { sanitizeRichTextFields } = await import('../../shared/sanitize-html.js');
+    const clean = sanitizeRichTextFields(data, ['bodyAr', 'bodyEn']);
+    return prisma.cmsPage.update({ where: { id }, data: clean as never });
   },
 
   async deletePage(id: string) {
@@ -170,6 +180,7 @@ export const cmsService = {
     coverImage?: string;
     isPublished: boolean;
   }) {
+    const { sanitizeRichText } = await import('../../shared/sanitize-html.js');
     const slug =
       input.slug ??
       (await uniqueSlug(input.titleEn, async (s) => Boolean(await prisma.blogPost.findUnique({ where: { slug: s } }))));
@@ -180,8 +191,8 @@ export const cmsService = {
         titleEn: input.titleEn,
         excerptAr: input.excerptAr,
         excerptEn: input.excerptEn,
-        bodyAr: input.bodyAr,
-        bodyEn: input.bodyEn,
+        bodyAr: sanitizeRichText(input.bodyAr),
+        bodyEn: sanitizeRichText(input.bodyEn),
         coverImage: input.coverImage,
         isPublished: input.isPublished,
         publishedAt: input.isPublished ? now() : null,
@@ -190,7 +201,9 @@ export const cmsService = {
   },
 
   async updateBlogPost(id: string, data: Record<string, unknown> & { isPublished?: boolean }) {
-    const update: Record<string, unknown> = { ...data };
+    const { sanitizeRichTextFields } = await import('../../shared/sanitize-html.js');
+    const clean = sanitizeRichTextFields({ ...data }, ['bodyAr', 'bodyEn', 'excerptAr', 'excerptEn']);
+    const update: Record<string, unknown> = { ...clean };
     if (data.isPublished === true) {
       update.publishedAt = now();
     }

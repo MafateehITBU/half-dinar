@@ -1,9 +1,14 @@
 import { FormEvent, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
-import { BRAND } from '@half-dinar/shared';
+import { BRAND, ROLES } from '@half-dinar/shared';
 import { adminApi, isAdminLoggedIn, saveAdminTokens } from '../lib/api';
 import { BRAND_LOGOS } from '../lib/brandLogos';
+
+function isStaff(roles: string[] | undefined) {
+  if (!roles?.length) return false;
+  return roles.some((r) => r !== ROLES.CUSTOMER);
+}
 
 export function LoginPage() {
   const [email, setEmail] = useState('admin@abou-al-nas.local');
@@ -17,6 +22,10 @@ export function LoginPage() {
     setError('');
     try {
       const res = await adminApi.login(email, password);
+      if (!isStaff(res.user?.roles)) {
+        setError('هذا الحساب غير مصرح له بدخول لوحة التحكم');
+        return;
+      }
       saveAdminTokens(res.tokens);
       window.location.href = '/';
     } catch (err) {

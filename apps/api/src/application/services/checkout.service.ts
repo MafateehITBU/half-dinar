@@ -467,38 +467,67 @@ export const checkoutService = {
     const event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
 
     if (event.type === 'payment_intent.succeeded') {
-      const intent = event.data.object;
+      const intent = event.data.object as {
+        id: string;
+        amount: number;
+        currency: string;
+        metadata?: { orderId?: string };
+      };
       const orderId = intent.metadata?.orderId;
-      if (orderId) {
-        const order = await prisma.order.findUnique({ where: { id: orderId } });
-        if (order && order.paymentStatus !== 'paid') {
-          await prisma.$transaction(async (tx) => {
-            await tx.order.update({
-              where: { id: orderId },
-              data: { status: 'processing', paymentStatus: 'paid' },
-            });
-            await tx.orderStatusHistory.createMany({
-              data: [
-                {
-                  orderId,
-                  fromStatus: order.status,
-                  toStatus: 'paid',
-                  note: 'Stripe webhook: payment succeeded',
-                  createdBy: 'system',
-                },
-                {
-                  orderId,
-                  fromStatus: 'paid',
-                  toStatus: 'processing',
-                  note: 'Auto processing after payment',
-                  createdBy: 'system',
-                },
-              ],
-            });
-          });
-          await sendOrderConfirmationEmail(orderId);
+      if (!orderId) return;
+
+      const order = await prisma.order.findUnique({ where: { id: orderId } });
+      if (!order || order.paymentStatus === 'paid') return;
+
+      // Bind webhook to the PaymentIntent we created for this order
+      if (order.stripePaymentIntentId && order.stripePaymentIntentId !== intent.id) {
+        console.warn(
+          `[stripe-webhook] Intent mismatch for order ${orderId}: expected ${order.stripePaymentIntentId}, got ${intent.id}`,
+        );
+        return;
+      }
+
+      // Amount is in the smallest currency unit (fils for JOD if supported, else cents)
+      // Soft check: if we stored total, compare when currency matches our charge currency
+      if (order.total != null && intent.amount != null) {
+        const expectedMinor = Math.round(Number(order.total) * 100);
+        if (Math.abs(expectedMinor - intent.amount) > 1) {
+          console.warn(
+            `[stripe-webhook] Amount mismatch for order ${orderId}: order=${expectedMinor} intent=${intent.amount}`,
+          );
+          return;
         }
       }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.order.update({
+          where: { id: orderId },
+          data: {
+            status: 'processing',
+            paymentStatus: 'paid',
+            stripePaymentIntentId: order.stripePaymentIntentId ?? intent.id,
+          },
+        });
+        await tx.orderStatusHistory.createMany({
+          data: [
+            {
+              orderId,
+              fromStatus: order.status,
+              toStatus: 'paid',
+              note: 'Stripe webhook: payment succeeded',
+              createdBy: 'system',
+            },
+            {
+              orderId,
+              fromStatus: 'paid',
+              toStatus: 'processing',
+              note: 'Auto processing after payment',
+              createdBy: 'system',
+            },
+          ],
+        });
+      });
+      await sendOrderConfirmationEmail(orderId);
     }
   },
 };

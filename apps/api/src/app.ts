@@ -2,13 +2,18 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import rateLimit from 'express-rate-limit';
 import swaggerUi from 'swagger-ui-express';
 import openapiSpec from './openapi/openapi.json' with { type: 'json' };
 import { env } from './config/env.js';
 import { v1Router } from './presentation/routes/index.js';
 import { webhooksRouter } from './presentation/routes/webhooks.routes.js';
 import { errorHandler, notFoundHandler } from './presentation/middleware/error.middleware.js';
+import {
+  authSensitiveLimiter,
+  authStrictLimiter,
+  globalApiLimiter,
+  refreshLimiter,
+} from './presentation/middleware/rate-limit.middleware.js';
 
 export function createApp() {
   const app = express();
@@ -20,7 +25,14 @@ export function createApp() {
 
   app.use(
     helmet({
-      contentSecurityPolicy: env.isProduction,
+      // Enable CSP for staging + production (payment / Visa surfaces)
+      contentSecurityPolicy: env.NODE_ENV !== 'development',
+      crossOriginEmbedderPolicy: false,
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+      hsts:
+        env.NODE_ENV !== 'development'
+          ? { maxAge: 31536000, includeSubDomains: true, preload: false }
+          : false,
     }),
   );
   app.use(
@@ -30,36 +42,31 @@ export function createApp() {
     }),
   );
 
-  // Stripe webhooks require raw body
+  // Stripe webhooks require raw body — mounted before JSON parser
   app.use('/api/v1/webhooks/stripe', express.raw({ type: 'application/json' }), webhooksRouter);
 
   app.use(express.json({ limit: '1mb' }));
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.urlencoded({ extended: true, limit: '1mb' }));
   app.use(cookieParser());
 
-  const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    // Admin SPA is chatty; 100/15m was logging people out via failed mutations under load.
-    max: env.isProduction ? 2000 : 5000,
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
-  app.use('/api', limiter);
+  app.use('/api', globalApiLimiter);
 
-  const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 20,
-    message: { error: { code: 'RATE_LIMITED', message: 'Too many auth attempts' } },
-  });
-  app.use('/api/v1/auth/login', authLimiter);
-  app.use('/api/v1/auth/register', authLimiter);
+  app.use('/api/v1/auth/login', authStrictLimiter);
+  app.use('/api/v1/auth/register', authStrictLimiter);
+  app.use('/api/v1/auth/forgot-password', authSensitiveLimiter);
+  app.use('/api/v1/auth/reset-password', authSensitiveLimiter);
+  app.use('/api/v1/auth/verify-email', authSensitiveLimiter);
+  app.use('/api/v1/auth/refresh', refreshLimiter);
 
   app.get('/', (_req, res) => {
-    res.json({ message: 'Abu Al-Nas API — use /api/v1', docs: env.isProduction ? undefined : '/api/docs' });
+    res.json({
+      message: 'MawJooD API — use /api/v1',
+      docs: env.isProduction ? undefined : '/api/docs',
+    });
   });
 
   if (!env.isProduction) {
-    app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec, { customSiteTitle: 'Abu Al-Nas API' }));
+    app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec, { customSiteTitle: 'MawJooD API' }));
   }
 
   app.use('/api/v1', v1Router);

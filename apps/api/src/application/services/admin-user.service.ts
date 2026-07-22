@@ -53,6 +53,23 @@ async function resolveRoleIds(slugs: string[]): Promise<string[]> {
   return roles.map((r) => r.id);
 }
 
+/** Sales/customers:write may only assign customer. Staff roles require USERS_WRITE (Super Admin). */
+function normalizeAssignableRoles(requested: string[], actorRoles: string[]): string[] {
+  const actorIsSuper = actorRoles.includes(ROLES.SUPER_ADMIN);
+  const unique = [...new Set(requested)];
+
+  if (unique.includes(ROLES.SUPER_ADMIN) && !actorIsSuper) {
+    throw new AppError(403, ErrorCodes.FORBIDDEN, 'Only Super Admin can assign Super Admin');
+  }
+
+  const staffRoles = unique.filter((r) => r !== ROLES.CUSTOMER);
+  if (staffRoles.length > 0 && !actorIsSuper) {
+    throw new AppError(403, ErrorCodes.FORBIDDEN, 'Only Super Admin can assign staff roles');
+  }
+
+  return unique.length ? unique : [ROLES.CUSTOMER];
+}
+
 export const adminUserService = {
   async list(query: AdminUserListQuery) {
     const { page, limit, search, role, active } = query;
@@ -111,13 +128,14 @@ export const adminUserService = {
     return mapUser(user);
   },
 
-  async create(input: AdminCreateUserInput) {
+  async create(input: AdminCreateUserInput, actorRoles: string[] = []) {
     const existing = await prisma.user.findUnique({ where: { email: input.email } });
     if (existing) {
       throw new AppError(409, ErrorCodes.CONFLICT, 'Email already registered');
     }
 
-    const roleIds = await resolveRoleIds(input.roles);
+    const roles = normalizeAssignableRoles(input.roles, actorRoles);
+    const roleIds = await resolveRoleIds(roles);
     const passwordHash = await bcrypt.hash(input.password, 12);
     let referralCode = generateReferralCode();
     while (await prisma.user.findUnique({ where: { referralCode } })) {
@@ -152,7 +170,7 @@ export const adminUserService = {
     return mapUser(user);
   },
 
-  async update(id: string, input: AdminUpdateUserInput) {
+  async update(id: string, input: AdminUpdateUserInput, actorRoles: string[] = []) {
     const user = await prisma.user.findUnique({
       where: { id },
       include: { roles: true },
@@ -180,13 +198,20 @@ export const adminUserService = {
 
     await prisma.$transaction(async (tx) => {
       if (input.roles) {
-        const roleIds = await resolveRoleIds(input.roles);
+        const roles = normalizeAssignableRoles(input.roles, actorRoles);
+        const roleIds = await resolveRoleIds(roles);
         await tx.userRole.deleteMany({ where: { userId: id } });
         await tx.userRole.createMany({
           data: roleIds.map((roleId) => ({ userId: id, roleId })),
         });
       }
       await tx.user.update({ where: { id }, data });
+      if (input.password) {
+        await tx.refreshToken.updateMany({
+          where: { userId: id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
     });
 
     return this.getById(id);

@@ -163,7 +163,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const adminApi = {
   login: (email: string, password: string) =>
-    request<{ tokens: AuthTokens }>('/auth/login', {
+    request<{ user: { roles: string[] }; tokens: AuthTokens }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),

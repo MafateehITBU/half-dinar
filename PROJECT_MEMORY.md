@@ -1,8 +1,8 @@
-# PROJECT MEMORY — Abu Al-Nas (ابو النص) E-Commerce
+# PROJECT MEMORY — MawJooD (موجود) / Abu Al-Nas E-Commerce
 
-> **Last updated:** 2026-07-18  
+> **Last updated:** 2026-07-22  
 > **Repo:** `half-dinar`  
-> **Status:** Phases 1–3 complete. Phase 4 in progress — VPS live at `abualnus.com` (HTTPS), GitHub Actions deploy ready; `admin`/`api` DNS + SSL pending.
+> **Status:** Phases 1–3 complete. Phase 4 live — production `mawjood.online` + staging `staging.mawjood.online`; rich text CMS; security hardening for Visa/Stripe.
 
 Read this file first in every new session before touching the codebase.
 
@@ -12,7 +12,7 @@ Read this file first in every new session before touching the codebase.
 
 | Field | Value |
 |-------|--------|
-| Customer-facing brand | **Abu Al-Nas** (ابو النص) |
+| Customer-facing brand | **MawJooD (موجود)** (legacy: Abu Al-Nas) |
 | Repo / working name | `half-dinar` |
 | Business type | Daily use products (general retail) |
 | Primary market | **Jordan** |
@@ -22,6 +22,7 @@ Read this file first in every new session before touching the codebase.
 | Age restriction | 13+ |
 | Refund window | **14 days** (manual admin approval, evidence required) |
 | B2B | No |
+| Payments | COD + **Stripe** (Visa/cards via Payment Element) |
 
 ---
 
@@ -243,9 +244,34 @@ npm run dev:admin                # http://localhost:5174
 
 ## Current Sprint
 
-**Phases 1–3:** ✅ Shipped in dev (Sprints 1–6 + Phase 3 invoice/docs/profile).
+**Phases 1–3:** ✅ Shipped.
 
-**Phase 4 (ops / production):** Not started — staging VPS, Certbot, CI/CD, test suite, monitoring.
+**Phase 4 (ops / production):** ✅ Staging + production on VPS (`mawjood.online` / `staging.mawjood.online`), Certbot TLS 1.2/1.3, GitHub Actions CD.
+
+### 2026-07-22 — Rich text + security hardening ✅
+
+**Rich text editor (admin → storefront)**
+- TipTap editor: bold, italic, underline, H1–H3, HR, font color, bullet + numbered lists
+- Used for product descriptions, CMS/policy pages, blog, cookie banner
+- Storefront `RichText` + DOMPurify; API `sanitize-html` on save
+- Branch workflow: `feature/*` → `staging` → `main` (production)
+
+**Admin session**
+- Access + refresh tokens; silent refresh on 401 (admin + storefront)
+- Avoids forced logout while editing CMS
+
+**Security (Visa / Stripe readiness)** — see `SECURITY.md`
+- Redis-backed rate limits: global, auth, password reset, refresh, checkout
+- Login lockout (Redis): 8 failures / 15m → 30m lock
+- Password policy: upper + lower + digit + special
+- JWT access default **15m**; refresh **7d**; reset password revokes sessions
+- RBAC: Sales cannot assign staff/`super_admin`; settings write Super Admin only
+- Admin login rejects customer-only accounts
+- Upload MIME allowlist (jpeg/png/webp/gif)
+- Stripe webhook: intent ID bind + amount check; no PAN stored
+- Helmet CSP/HSTS (non-dev); nginx security-headers snippet
+- Fixed `.gitignore` for `deploy/.env.*`
+- CI: `npm audit` (high+) reported
 
 ### Phase 3 — Invoice, API docs, profile ✅
 
@@ -427,16 +453,16 @@ npm run dev:admin                # http://localhost:5174
 
 ## Security Decisions
 
-- Helmet, rate limiting, CORS allowlist (storefront + admin origins)
-- Input validation: Zod on all write endpoints
-- Parameterized queries via Prisma
-- JWT short access + rotating refresh tokens
-- httpOnly secure cookies for refresh (production)
-- CSRF for cookie-based flows if used; SPA primarily Bearer
-- Password bcrypt cost 12
-- Audit log for admin mutations
-- Refund evidence stored in Cloudinary private or signed URLs
-- Age gate: 13+ checkbox at registration
+- Helmet + CORS allowlist; Redis-backed rate limits (auth/checkout/global); login lockout
+- Zod on write endpoints; Prisma parameterized queries
+- JWT 15m access + rotating hashed refresh; reset revokes sessions
+- Password bcrypt 12 + special character required
+- Rich text: sanitize-html on save, DOMPurify on storefront
+- Stripe Payment Element (no PAN); webhook signature + intent/amount checks
+- Super Admin only for staff role assignment & settings write; staff-only admin login
+- Upload MIME allowlist; TLS 1.2/1.3 + HSTS snippets
+- Follow-up: httpOnly refresh cookies; full admin audit trail; token-reuse detection
+- Age gate 13+; cookie consent before non-essential tracking
 
 ---
 
@@ -457,4 +483,6 @@ npm run dev:admin                # http://localhost:5174
 |------|--------|
 | 2026-06-04 | Discovery completed; docs created |
 | 2026-06-04 | Sprint 2: shipping zones, checkout, COD/Stripe orders, timeline, admin orders |
-| 2026-07-18 | Production VPS `46.202.153.60`: Docker infra, Nginx, PM2 API, Certbot for `abualnus.com`/`www`; GitHub Actions CI/CD; DNS needed for `admin` + `api` |
+| 2026-07-18 | Production VPS `46.202.153.60`: Docker infra, Nginx, PM2 API, Certbot; GitHub Actions CI/CD |
+| 2026-07-22 | Brand MawJooD live domains; staging env; TipTap rich text + storefront render |
+| 2026-07-22 | Admin session refresh; security hardening (rate limits, lockout, RBAC, sanitize, Stripe webhook checks, SECURITY.md) |

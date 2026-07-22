@@ -6,7 +6,18 @@ const passwordSchema = z
   .min(8, 'Password must be at least 8 characters')
   .regex(/[A-Z]/, 'Password must contain an uppercase letter')
   .regex(/[a-z]/, 'Password must contain a lowercase letter')
-  .regex(/[0-9]/, 'Password must contain a number');
+  .regex(/[0-9]/, 'Password must contain a number')
+  .regex(/[^A-Za-z0-9]/, 'Password must contain a special character');
+
+/** Roles that may be assigned via admin UI (super_admin is gated in the service). */
+export const ASSIGNABLE_ROLE_SLUGS = [
+  ROLES.CUSTOMER,
+  ROLES.ADMIN,
+  ROLES.MANAGE_PRODUCT,
+  ROLES.SALES,
+  ROLES.INSIGHTS,
+  ROLES.SUPER_ADMIN,
+] as const;
 
 export const adminUserListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -25,7 +36,7 @@ export const adminCreateUserSchema = z.object({
   locale: z.enum(SUPPORTED_LOCALES).default('ar'),
   isActive: z.boolean().default(true),
   emailVerified: z.boolean().default(false),
-  roles: z.array(z.string().min(1)).min(1).default([ROLES.CUSTOMER]),
+  roles: z.array(z.enum(ASSIGNABLE_ROLE_SLUGS)).min(1).default([ROLES.CUSTOMER]),
 });
 
 export const adminUpdateUserSchema = z.object({
@@ -37,7 +48,7 @@ export const adminUpdateUserSchema = z.object({
   locale: z.enum(SUPPORTED_LOCALES).optional(),
   isActive: z.boolean().optional(),
   emailVerified: z.boolean().optional(),
-  roles: z.array(z.string().min(1)).optional(),
+  roles: z.array(z.enum(ASSIGNABLE_ROLE_SLUGS)).optional(),
 });
 
 export const changePasswordSchema = z.object({

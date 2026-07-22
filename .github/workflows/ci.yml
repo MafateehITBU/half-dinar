@@ -23,6 +23,9 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Security audit (non-blocking high/critical report)
+        run: npm audit --omit=dev --audit-level=high || true
+
       - name: Prisma generate
         working-directory: apps/api
         run: npx prisma generate

@@ -14,10 +14,12 @@ import {
   authenticate,
   type AuthenticatedRequest,
 } from '../middleware/auth.middleware.js';
+import { checkoutLimiter } from '../middleware/rate-limit.middleware.js';
 
 export const checkoutRouter = Router();
 
 checkoutRouter.use(authenticate);
+checkoutRouter.use(checkoutLimiter);
 
 checkoutRouter.get(
   '/shipping-zones',
@@ -48,7 +50,7 @@ checkoutRouter.post(
     const input = validateCouponSchema.parse(req.body);
     const userId = (req as AuthenticatedRequest).user!.sub;
     const cart = await cartService.getCart(userId);
-    const { zone, shippingAmount } = await shippingService.calculateShipping(
+    const { shippingAmount } = await shippingService.calculateShipping(
       input.governorateCode,
       cart.subtotal,
     );
