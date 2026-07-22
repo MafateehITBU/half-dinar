@@ -182,6 +182,22 @@
   .rich-text-editor .ProseMirror hr {
     @apply my-3 border-t border-slate-300;
   }
+  .rich-text-editor .ProseMirror ul {
+    @apply mb-2 list-disc pr-5;
+  }
+  .rich-text-editor .ProseMirror ol {
+    @apply mb-2 list-decimal pr-5;
+  }
+  .rich-text-editor[dir='ltr'] .ProseMirror ul,
+  .rich-text-editor[dir='ltr'] .ProseMirror ol {
+    @apply pl-5 pr-0;
+  }
+  .rich-text-editor .ProseMirror li {
+    @apply mb-0.5;
+  }
+  .rich-text-editor .ProseMirror li p {
+    margin: 0;
+  }
   .rich-text-editor .ProseMirror u {
     text-decoration: underline;
   }

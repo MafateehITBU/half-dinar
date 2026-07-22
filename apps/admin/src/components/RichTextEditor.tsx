@@ -191,6 +191,23 @@ export function RichTextEditor({
         <span className="mx-1 h-5 w-px bg-slate-200" />
 
         <ToolbarButton
+          title="Bullet list"
+          active={editor.isActive('bulletList')}
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+        >
+          <Icon icon="mdi:format-list-bulleted" className="text-lg" />
+        </ToolbarButton>
+        <ToolbarButton
+          title="Numbered list"
+          active={editor.isActive('orderedList')}
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+        >
+          <Icon icon="mdi:format-list-numbered" className="text-lg" />
+        </ToolbarButton>
+
+        <span className="mx-1 h-5 w-px bg-slate-200" />
+
+        <ToolbarButton
           title="Horizontal line"
           onClick={() => editor.chain().focus().setHorizontalRule().run()}
         >

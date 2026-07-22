@@ -994,6 +994,10 @@
   .prose-content ol {
     @apply mb-4 list-decimal pr-5;
   }
+  .prose-content[dir='ltr'] ul,
+  .prose-content[dir='ltr'] ol {
+    @apply pl-5 pr-0;
+  }
   .prose-content li {
     @apply mb-1;
   }
