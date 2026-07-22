@@ -152,6 +152,53 @@
     box-shadow: 0 0 0 3px rgba(11, 71, 69, 0.12);
   }
 
+  .rich-text-editor {
+    border-color: var(--brand-sand);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .rich-text-editor:focus-within {
+    border-color: var(--brand-green);
+    box-shadow: 0 0 0 3px rgba(11, 71, 69, 0.12);
+  }
+  .rich-text-editor .ProseMirror {
+    min-height: inherit;
+    outline: none;
+  }
+  .rich-text-editor .ProseMirror p {
+    margin: 0 0 0.5em;
+  }
+  .rich-text-editor .ProseMirror p:last-child {
+    margin-bottom: 0;
+  }
+  .rich-text-editor .ProseMirror h1 {
+    @apply mb-2 text-2xl font-bold;
+  }
+  .rich-text-editor .ProseMirror h2 {
+    @apply mb-2 text-xl font-bold;
+  }
+  .rich-text-editor .ProseMirror h3 {
+    @apply mb-1.5 text-lg font-bold;
+  }
+  .rich-text-editor .ProseMirror hr {
+    @apply my-3 border-t border-slate-300;
+  }
+  .rich-text-editor .ProseMirror u {
+    text-decoration: underline;
+  }
+  .rich-text-editor .ProseMirror p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: right;
+    color: #94a3b8;
+    pointer-events: none;
+    height: 0;
+  }
+  .rich-text-editor[dir='ltr'] .ProseMirror p.is-editor-empty:first-child::before {
+    float: left;
+  }
+  .rich-text-editor .ProseMirror.ProseMirror-focused p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+  }
+
   .select-field {
     @apply input-field;
   }

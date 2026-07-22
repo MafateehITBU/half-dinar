@@ -9,6 +9,7 @@ import { Icon } from '@iconify/react';
 import { BRAND } from '@half-dinar/shared';
 import { ProductCard } from '../components/ProductCard';
 import { ProductGallery } from '../components/ProductGallery';
+import { RichText, stripHtml } from '../components/RichText';
 import { Skeleton } from '../components/ui/Skeleton';
 import { useCart } from '../context/CartContext';
 import { api, isLoggedIn } from '../lib/api';
@@ -114,7 +115,7 @@ export function ProductPage() {
     <Layout>
       <SEOHead
         title={`${product.nameAr} — ${BRAND.nameAr}`}
-        description={product.descriptionAr?.slice(0, 160) ?? product.nameAr}
+        description={stripHtml(product.descriptionAr ?? '').slice(0, 160) || product.nameAr}
         jsonLd={jsonLd}
       />
 
@@ -245,7 +246,7 @@ export function ProductPage() {
               </AnimatePresence>
 
               {product.descriptionAr && (
-                <p className="pd-lead">{product.descriptionAr.split('\n')[0]}</p>
+                <p className="pd-lead">{stripHtml(product.descriptionAr).slice(0, 180)}</p>
               )}
 
               {product.tags.length > 0 && (
@@ -276,14 +277,12 @@ export function ProductPage() {
             </header>
             <div className="pd-block-body">
               {product.descriptionAr ? (
-                <p className="whitespace-pre-line">{product.descriptionAr}</p>
+                <RichText html={product.descriptionAr} />
               ) : (
                 <p className="text-brand-muted">لا يوجد وصف إضافي.</p>
               )}
               {product.descriptionEn && (
-                <p className="mt-5 whitespace-pre-line opacity-70" dir="ltr">
-                  {product.descriptionEn}
-                </p>
+                <RichText html={product.descriptionEn} className="mt-5 opacity-70" dir="ltr" />
               )}
             </div>
           </section>

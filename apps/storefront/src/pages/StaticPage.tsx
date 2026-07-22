@@ -4,6 +4,7 @@ import { Layout } from '../components/Layout';
 import { Container } from '../components/ui/Container';
 import { PageHero } from '../components/ui/PageHero';
 import { SEOHead } from '../components/SEOHead';
+import { RichText, stripHtml } from '../components/RichText';
 import { api } from '../lib/api';
 
 type CmsPageData = {
@@ -42,7 +43,7 @@ export function StaticPage() {
 
   return (
     <Layout>
-      {page && <SEOHead title={title} description={body.slice(0, 160)} />}
+      {page && <SEOHead title={title} description={stripHtml(body).slice(0, 160)} />}
       <Container narrow className="space-y-8">
         {loading ? (
           <div className="h-64 animate-pulse rounded-[var(--radius-panel)] bg-brand-sand/60" />
@@ -69,8 +70,8 @@ export function StaticPage() {
                 English
               </button>
             </div>
-            <div className="surface-elevated prose-content p-8 md:p-10" dir={showEn ? 'ltr' : 'rtl'}>
-              <div className="whitespace-pre-wrap leading-relaxed">{body}</div>
+            <div className="surface-elevated p-8 md:p-10" dir={showEn ? 'ltr' : 'rtl'}>
+              <RichText html={body} className="leading-relaxed" dir={showEn ? 'ltr' : 'rtl'} />
             </div>
           </>
         ) : (

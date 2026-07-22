@@ -3,6 +3,7 @@ import { Icon } from '@iconify/react';
 import { AdminLayout } from '../components/AdminLayout';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Modal } from '../components/ui/Modal';
+import { RichTextEditor } from '../components/RichTextEditor';
 import { adminApi } from '../lib/api';
 import { confirmDelete } from '../lib/confirm';
 
@@ -281,16 +282,19 @@ export function CmsPage() {
             </div>
             <label className="block">
               <span className="mb-1 block text-xs text-slate-600">المحتوى بالعربية</span>
-              <textarea className="input-field" rows={4} value={pageForm.bodyAr} onChange={(e) => setPageForm({ ...pageForm, bodyAr: e.target.value })} />
+              <RichTextEditor
+                value={pageForm.bodyAr}
+                onChange={(html) => setPageForm({ ...pageForm, bodyAr: html })}
+                minHeight="120px"
+              />
             </label>
             <label className="block">
               <span className="mb-1 block text-xs text-slate-600">Content (English)</span>
-              <textarea
-                className="input-field"
-                dir="ltr"
-                rows={4}
+              <RichTextEditor
                 value={pageForm.bodyEn}
-                onChange={(e) => setPageForm({ ...pageForm, bodyEn: e.target.value })}
+                onChange={(html) => setPageForm({ ...pageForm, bodyEn: html })}
+                dir="ltr"
+                minHeight="120px"
               />
             </label>
             <button type="submit" className="btn-primary">
@@ -365,7 +369,11 @@ export function CmsPage() {
             </label>
             <label className="block">
               <span className="mb-1 block text-xs text-slate-600">المحتوى</span>
-              <textarea className="input-field" rows={5} value={blogForm.bodyAr} onChange={(e) => setBlogForm({ ...blogForm, bodyAr: e.target.value })} />
+              <RichTextEditor
+                value={blogForm.bodyAr}
+                onChange={(html) => setBlogForm({ ...blogForm, bodyAr: html })}
+                minHeight="140px"
+              />
             </label>
             <button type="submit" className="btn-primary">
               نشر مقال
@@ -469,11 +477,10 @@ export function CmsPage() {
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-xs text-slate-600">المحتوى</span>
-                  <textarea
-                    className="input-field min-h-[280px] font-mono text-sm leading-relaxed"
-                    required
+                  <RichTextEditor
                     value={editPage.bodyAr ?? ''}
-                    onChange={(e) => setEditPage({ ...editPage, bodyAr: e.target.value })}
+                    onChange={(html) => setEditPage({ ...editPage, bodyAr: html })}
+                    minHeight="280px"
                   />
                 </label>
               </div>
@@ -490,11 +497,11 @@ export function CmsPage() {
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-xs text-slate-600">Body</span>
-                  <textarea
-                    className="input-field min-h-[280px] font-mono text-sm leading-relaxed"
-                    required
+                  <RichTextEditor
                     value={editPage.bodyEn ?? ''}
-                    onChange={(e) => setEditPage({ ...editPage, bodyEn: e.target.value })}
+                    onChange={(html) => setEditPage({ ...editPage, bodyEn: html })}
+                    dir="ltr"
+                    minHeight="280px"
                   />
                 </label>
               </div>
@@ -528,11 +535,10 @@ export function CmsPage() {
               value={editPost.titleAr}
               onChange={(e) => setEditPost({ ...editPost, titleAr: e.target.value })}
             />
-            <textarea
-              className="input-field"
-              rows={8}
+            <RichTextEditor
               value={editPost.bodyAr ?? ''}
-              onChange={(e) => setEditPost({ ...editPost, bodyAr: e.target.value })}
+              onChange={(html) => setEditPost({ ...editPost, bodyAr: html })}
+              minHeight="220px"
             />
             <button type="submit" className="btn-primary">
               حفظ

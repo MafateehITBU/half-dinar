@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { AdminLayout } from '../components/AdminLayout';
+import { RichTextEditor } from '../components/RichTextEditor';
 import { adminApi } from '../lib/api';
 
 export function SettingsPage() {
@@ -65,12 +66,13 @@ export function SettingsPage() {
         </label>
         <label className="block text-sm">
           نص موافقة الكوكيز (AR)
-          <textarea
-            value={form.cookie_banner_text_ar}
-            onChange={(e) => setForm({ ...form, cookie_banner_text_ar: e.target.value })}
-            className="mt-1 w-full rounded border px-3 py-2"
-            rows={2}
-          />
+          <div className="mt-1">
+            <RichTextEditor
+              value={form.cookie_banner_text_ar}
+              onChange={(html) => setForm({ ...form, cookie_banner_text_ar: html })}
+              minHeight="72px"
+            />
+          </div>
         </label>
         <div className="grid grid-cols-2 gap-3">
           <label className="text-sm">

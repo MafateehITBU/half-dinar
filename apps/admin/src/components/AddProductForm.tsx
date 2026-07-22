@@ -1,6 +1,7 @@
 import { FormEvent } from 'react';
 import { Icon } from '@iconify/react';
 import { ProductImageUpload } from './ProductImageUpload';
+import { RichTextEditor } from './RichTextEditor';
 
 export type AddProductFormState = {
   sku: string;
@@ -147,21 +148,21 @@ export function AddProductForm({
         <div className="grid gap-4">
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-slate-600">الوصف بالعربية</span>
-            <textarea
-              className="input-field min-h-[120px] resize-y"
-              placeholder="تفاصيل المنتج، الاستخدام، الحجم..."
+            <RichTextEditor
               value={form.descriptionAr}
-              onChange={(e) => set('descriptionAr', e.target.value)}
+              onChange={(html) => set('descriptionAr', html)}
+              placeholder="تفاصيل المنتج، الاستخدام، الحجم..."
+              minHeight="120px"
             />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-slate-600">الوصف بالإنجليزية</span>
-            <textarea
-              className="input-field min-h-[100px] resize-y"
-              dir="ltr"
-              placeholder="Product details, usage, size..."
+            <RichTextEditor
               value={form.descriptionEn}
-              onChange={(e) => set('descriptionEn', e.target.value)}
+              onChange={(html) => set('descriptionEn', html)}
+              placeholder="Product details, usage, size..."
+              dir="ltr"
+              minHeight="100px"
             />
           </label>
         </div>

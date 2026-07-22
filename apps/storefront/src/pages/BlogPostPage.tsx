@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import { Layout } from '../components/Layout';
 import { Container } from '../components/ui/Container';
+import { RichText } from '../components/RichText';
 import { api } from '../lib/api';
 
 export function BlogPostPage() {
@@ -34,8 +35,8 @@ export function BlogPostPage() {
               </span>
               <h1 className="hero-text-shadow mt-4 font-display text-3xl font-extrabold text-white md:text-4xl">{post.titleAr}</h1>
             </header>
-            <div className="surface-elevated prose-content mt-6 p-8 md:p-10">
-              <div className="whitespace-pre-wrap">{post.bodyAr}</div>
+            <div className="surface-elevated mt-6 p-8 md:p-10">
+              <RichText html={post.bodyAr} />
             </div>
           </article>
         ) : (

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { getConsent, setConsent } from '../lib/consent';
+import { RichText } from './RichText';
 import { api } from '../lib/api';
 
 export function CookieConsent() {
@@ -20,12 +21,12 @@ export function CookieConsent() {
   return (
     <div className="fixed bottom-[4.5rem] left-4 right-4 z-50 md:bottom-6 md:left-auto md:right-6 md:max-w-md">
       <div className="surface-elevated flex flex-col gap-4 p-5 shadow-float md:p-6">
-        <p className="flex items-start gap-3 text-sm font-medium text-brand-ink">
+        <div className="flex items-start gap-3 text-sm font-medium text-brand-ink">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-green text-xl text-brand-gold-light">
             <Icon icon="mdi:cookie-outline" />
           </span>
-          {text}
-        </p>
+          <RichText html={text} className="flex-1 [&_p]:mb-0" />
+        </div>
         <div className="flex gap-2">
           <button
             type="button"

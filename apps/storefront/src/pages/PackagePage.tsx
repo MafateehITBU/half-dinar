@@ -4,6 +4,7 @@ import { Icon } from '@iconify/react';
 import type { PackageDetail } from '@half-dinar/shared';
 import { Layout } from '../components/Layout';
 import { ProductImage } from '../components/ProductImage';
+import { RichText } from '../components/RichText';
 import { useCart } from '../context/CartContext';
 import { api } from '../lib/api';
 
@@ -46,7 +47,9 @@ export function PackagePage() {
             {pkg.savings > 0 && (
               <p className="mt-2 font-medium text-green-600">توفير {pkg.savings.toFixed(2)} د.أ</p>
             )}
-            <p className="mt-6 leading-relaxed text-brand-muted">{pkg.descriptionAr}</p>
+            {pkg.descriptionAr && (
+              <RichText html={pkg.descriptionAr} className="mt-6 text-brand-muted" />
+            )}
 
             <h3 className="mt-8 font-bold">محتويات الباقة</h3>
             <ul className="mt-3 space-y-2 rounded-xl bg-brand-cream p-4">

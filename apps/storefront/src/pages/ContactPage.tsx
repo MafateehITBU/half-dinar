@@ -5,6 +5,7 @@ import { contactSubmitSchema } from '@half-dinar/shared';
 import { Layout } from '../components/Layout';
 import { Container } from '../components/ui/Container';
 import { PageHero } from '../components/ui/PageHero';
+import { RichText } from '../components/RichText';
 import { api } from '../lib/api';
 import { formatZodErrors } from '../lib/errors';
 import { showError, showSuccess } from '../lib/toast';
@@ -266,7 +267,9 @@ export function ContactPage() {
                         transition={{ duration: 0.25 }}
                         className="overflow-hidden border-t border-brand-sand"
                       >
-                        <p className="p-5 text-sm leading-relaxed text-brand-muted">{f.answerAr}</p>
+                        <div className="p-5 text-sm leading-relaxed text-brand-muted">
+                          <RichText html={f.answerAr} />
+                        </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
