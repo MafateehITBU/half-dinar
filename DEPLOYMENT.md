@@ -24,16 +24,16 @@ VPS IP: **`46.202.153.60`**
 
 | Type | Host | Value | Purpose |
 |------|------|-------|---------|
-| A | `@` | `46.202.153.60` | Storefront — `https://abualnus.com` |
+| A | `@` | `46.202.153.60` | Storefront — `https://mawjood.online` |
 | A | `www` | `46.202.153.60` | Storefront www |
-| A | `admin` | `46.202.153.60` | **Dashboard** — `https://admin.abualnus.com` |
-| A | `api` | `46.202.153.60` | API / Stripe webhooks — `https://api.abualnus.com` |
+| A | `dashboard` | `46.202.153.60` | **Dashboard** — `https://dashboard.mawjood.online` |
+| A | `api` | `46.202.153.60` | API / Stripe webhooks — `https://api.mawjood.online` |
 
 After DNS propagates, issue SSL:
 
 ```bash
 ssh root@46.202.153.60
-certbot --nginx -d abualnus.com -d www.abualnus.com -d admin.abualnus.com -d api.abualnus.com --redirect
+certbot --nginx -d mawjood.online -d www.mawjood.online -d dashboard.mawjood.online -d api.mawjood.online --redirect
 ```
 
 ## VPS production
@@ -88,23 +88,23 @@ Key groups:
 
 Verify:
 ```bash
-openssl s_client -connect abualnus.com:443 -tls1_1   # must fail
-openssl s_client -connect abualnus.com:443 -tls1_2   # must succeed
+openssl s_client -connect mawjood.online:443 -tls1_1   # must fail
+openssl s_client -connect mawjood.online:443 -tls1_2   # must succeed
 ```
 
 ## Payment-gateway KYC — website checklist
 
 | Requirement | Status | URL |
 |-------------|--------|-----|
-| Terms & Conditions | ✅ | https://abualnus.com/pages/terms-and-conditions |
-| Privacy Policy | ✅ | https://abualnus.com/pages/privacy-policy |
-| Shipping / Delivery Policy | ✅ | https://abualnus.com/pages/shipping-policy |
-| Pricing / Services Policy | ✅ | https://abualnus.com/pages/pricing-policy |
-| Cancellation / Refund Policy | ✅ | https://abualnus.com/pages/cancellation-policy |
-| About / company page | ✅ | https://abualnus.com/pages/about |
-| Contact page | ✅ | https://abualnus.com/contact |
+| Terms & Conditions | ✅ | https://mawjood.online/pages/terms-and-conditions |
+| Privacy Policy | ✅ | https://mawjood.online/pages/privacy-policy |
+| Shipping / Delivery Policy | ✅ | https://mawjood.online/pages/shipping-policy |
+| Pricing / Services Policy | ✅ | https://mawjood.online/pages/pricing-policy |
+| Cancellation / Refund Policy | ✅ | https://mawjood.online/pages/cancellation-policy |
+| About / company page | ✅ | https://mawjood.online/pages/about |
+| Contact page | ✅ | https://mawjood.online/contact |
 | HTTPS + modern TLS only | ✅ | TLS 1.2 / 1.3 |
-| Policies editable (AR + EN) | ✅ | https://admin.abualnus.com/cms → السياسات القانونية |
+| Policies editable (AR + EN) | ✅ | https://dashboard.mawjood.online/cms → السياسات القانونية |
 
 Editable later from the admin CMS without redeploying.
 

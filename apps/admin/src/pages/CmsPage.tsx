@@ -147,7 +147,7 @@ export function CmsPage() {
                   </div>
                   <div className="flex gap-3">
                     <a
-                      href={`https://abualnus.com/pages/${p.slug}`}
+                      href={`https://mawjood.online/pages/${p.slug}`}
                       target="_blank"
                       rel="noreferrer"
                       className="text-slate-500 hover:underline"
