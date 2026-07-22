@@ -1024,15 +1024,12 @@
   .mobile-nav-spacer { @apply h-[4.5rem] md:hidden; }
 
   .logo-wrap-light {
-    @apply inline-flex items-center rounded-xl px-2 py-1.5;
-    background-color: #000000;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+    @apply inline-flex items-center rounded-xl px-1 py-1;
+    background-color: transparent;
   }
 
   .logo-wrap-elevated {
-    box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.12),
-      var(--shadow-soft);
+    box-shadow: none;
   }
 
   /* ── Promo strip ── */
