@@ -2,7 +2,7 @@ import { FormEvent, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import { BRAND } from '@half-dinar/shared';
-import { adminApi, isAdminLoggedIn } from '../lib/api';
+import { adminApi, isAdminLoggedIn, saveAdminTokens } from '../lib/api';
 import { BRAND_LOGOS } from '../lib/brandLogos';
 
 export function LoginPage() {
@@ -17,7 +17,7 @@ export function LoginPage() {
     setError('');
     try {
       const res = await adminApi.login(email, password);
-      localStorage.setItem('adminAccessToken', res.tokens.accessToken);
+      saveAdminTokens(res.tokens);
       window.location.href = '/';
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل تسجيل الدخول');

@@ -39,7 +39,8 @@ export function createApp() {
 
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: env.isProduction ? 100 : 1000,
+    // Admin SPA is chatty; 100/15m was logging people out via failed mutations under load.
+    max: env.isProduction ? 2000 : 5000,
     standardHeaders: true,
     legacyHeaders: false,
   });

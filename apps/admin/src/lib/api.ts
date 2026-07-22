@@ -1,8 +1,12 @@
 import type { AdminCreateUserInput, AdminUpdateUserInput, AdminUserSummary, PaginationMeta } from '@half-dinar/shared';
 
 const API_BASE = '/api/v1';
+const ACCESS_KEY = 'adminAccessToken';
+const REFRESH_KEY = 'adminRefreshToken';
 
 export type PaginatedResponse<T> = { data: T[]; pagination: PaginationMeta };
+
+type AuthTokens = { accessToken: string; refreshToken: string; expiresIn?: number };
 
 function buildQuery(params: Record<string, string | number | undefined>) {
   const q = new URLSearchParams();
@@ -14,21 +18,89 @@ function buildQuery(params: Record<string, string | number | undefined>) {
 }
 
 function authHeaders(): HeadersInit {
-  const token = localStorage.getItem('adminAccessToken');
+  const token = localStorage.getItem(ACCESS_KEY);
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+export function saveAdminTokens(tokens: AuthTokens) {
+  localStorage.setItem(ACCESS_KEY, tokens.accessToken);
+  localStorage.setItem(REFRESH_KEY, tokens.refreshToken);
+}
+
+function clearAdminTokens() {
+  localStorage.removeItem(ACCESS_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+}
+
+function forceLogin() {
+  clearAdminTokens();
+  if (!window.location.pathname.startsWith('/login')) {
+    window.location.href = '/login';
+  }
+}
+
+/** Single in-flight refresh so parallel 401s don't rotate the refresh token twice. */
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefreshAccessToken(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const refreshToken = localStorage.getItem(REFRESH_KEY);
+    if (!refreshToken) return false;
+
+    try {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!res.ok) return false;
+      const data = (await res.json()) as { tokens: AuthTokens };
+      if (!data?.tokens?.accessToken || !data?.tokens?.refreshToken) return false;
+      saveAdminTokens(data.tokens);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
+async function handleUnauthorized(path: string, retry: () => Promise<Response>): Promise<Response | null> {
+  // Don't try to refresh the login/refresh calls themselves
+  if (path.startsWith('/auth/login') || path.startsWith('/auth/refresh')) {
+    return null;
+  }
+  const ok = await tryRefreshAccessToken();
+  if (!ok) {
+    forceLogin();
+    return null;
+  }
+  return retry();
+}
+
 async function postFormData<T>(path: string, formData: FormData, method = 'POST'): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers: authHeaders(),
-    body: formData,
-  });
+  const doFetch = () =>
+    fetch(`${API_BASE}${path}`, {
+      method,
+      headers: authHeaders(),
+      body: formData,
+    });
+
+  let res = await doFetch();
 
   if (res.status === 401) {
-    localStorage.removeItem('adminAccessToken');
-    window.location.href = '/login';
-    throw new Error('Unauthorized');
+    const retried = await handleUnauthorized(path, doFetch);
+    if (!retried) throw new Error('Unauthorized');
+    res = retried;
+    if (res.status === 401) {
+      forceLogin();
+      throw new Error('Unauthorized');
+    }
   }
 
   if (!res.ok) {
@@ -58,19 +130,26 @@ function buildProductFormData(
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders(),
-      ...options.headers,
-    },
-  });
+  const doFetch = () =>
+    fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(),
+        ...options.headers,
+      },
+    });
+
+  let res = await doFetch();
 
   if (res.status === 401) {
-    localStorage.removeItem('adminAccessToken');
-    window.location.href = '/login';
-    throw new Error('Unauthorized');
+    const retried = await handleUnauthorized(path, doFetch);
+    if (!retried) throw new Error('Unauthorized');
+    res = retried;
+    if (res.status === 401) {
+      forceLogin();
+      throw new Error('Unauthorized');
+    }
   }
 
   if (!res.ok) {
@@ -84,7 +163,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const adminApi = {
   login: (email: string, password: string) =>
-    request<{ tokens: { accessToken: string } }>('/auth/login', {
+    request<{ tokens: AuthTokens }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
@@ -368,19 +447,35 @@ export const adminApi = {
 };
 
 export function isAdminLoggedIn() {
-  return Boolean(localStorage.getItem('adminAccessToken'));
+  return Boolean(localStorage.getItem(ACCESS_KEY));
 }
 
 export function adminLogout() {
-  localStorage.removeItem('adminAccessToken');
+  const refreshToken = localStorage.getItem(REFRESH_KEY);
+  clearAdminTokens();
+  if (refreshToken) {
+    void fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    }).catch(() => {});
+  }
 }
 
 export async function openAdminOrderInvoice(orderId: string, format: 'html' | 'pdf') {
-  const token = localStorage.getItem('adminAccessToken');
+  const token = localStorage.getItem(ACCESS_KEY);
   const path = format === 'pdf' ? `/admin/orders/${orderId}/invoice.pdf` : `/admin/orders/${orderId}/invoice`;
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
+  const doFetch = () =>
+    fetch(`${API_BASE}${path}`, {
+      headers: token ? { Authorization: `Bearer ${localStorage.getItem(ACCESS_KEY)}` } : {},
+    });
+
+  let res = await doFetch();
+  if (res.status === 401) {
+    const retried = await handleUnauthorized(path, doFetch);
+    if (!retried) throw new Error('تعذر تحميل الفاتورة');
+    res = retried;
+  }
   if (!res.ok) throw new Error('تعذر تحميل الفاتورة');
   if (format === 'html') {
     const html = await res.text();
