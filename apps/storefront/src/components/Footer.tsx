@@ -73,6 +73,22 @@ export function Footer() {
                   </span>
                 ))}
               </div>
+              <div className="mt-6">
+                <p className="mb-2 text-xs font-medium text-brand-gold-light/70">طرق الدفع المقبولة</p>
+                <div
+                  className="flex flex-wrap items-center gap-3"
+                  aria-label="نقبل بطاقات Visa و Mastercard"
+                >
+                  <span className="inline-flex h-10 items-center rounded-lg bg-white px-3 shadow-sm">
+                    <Icon icon="logos:visa" className="text-[28px]" aria-hidden />
+                    <span className="sr-only">Visa</span>
+                  </span>
+                  <span className="inline-flex h-10 items-center rounded-lg bg-white px-3 shadow-sm">
+                    <Icon icon="logos:mastercard" className="text-[28px]" aria-hidden />
+                    <span className="sr-only">Mastercard</span>
+                  </span>
+                </div>
+              </div>
             </motion.div>
 
             {FOOTER_LINKS.map((group, gi) => (
@@ -119,8 +135,27 @@ export function Footer() {
         </div>
       </div>
 
-      <div className="border-t py-6 text-center text-xs text-brand-muted" style={{ borderColor: 'var(--brand-sand)' }}>
-        © {new Date().getFullYear()} {BRAND.nameAr} — جميع الحقوق محفوظة
+      <div
+        className="border-t py-6"
+        style={{ borderColor: 'var(--brand-sand)' }}
+      >
+        <div className="page-shell flex flex-col items-center justify-between gap-4 text-xs text-brand-muted sm:flex-row">
+          <p>© {new Date().getFullYear()} {BRAND.nameAr} — جميع الحقوق محفوظة</p>
+          <div
+            className="flex items-center gap-2"
+            aria-label="نقبل بطاقات Visa و Mastercard"
+          >
+            <span className="text-[11px] text-brand-muted/80">ندعم</span>
+            <span className="inline-flex h-8 items-center rounded-md border border-brand-sand bg-white px-2.5">
+              <Icon icon="logos:visa" className="text-xl" aria-hidden />
+              <span className="sr-only">Visa</span>
+            </span>
+            <span className="inline-flex h-8 items-center rounded-md border border-brand-sand bg-white px-2.5">
+              <Icon icon="logos:mastercard" className="text-xl" aria-hidden />
+              <span className="sr-only">Mastercard</span>
+            </span>
+          </div>
+        </div>
       </div>
     </footer>
   );
