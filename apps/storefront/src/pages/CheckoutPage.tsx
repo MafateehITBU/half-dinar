@@ -315,14 +315,15 @@ export function CheckoutPage() {
                 {stripeEnabled ? (
                   <label className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition ${paymentMethod === 'stripe' ? 'border-primary bg-primary-50' : 'border-brand-sand'}`}>
                     <input type="radio" name="pay" checked={paymentMethod === 'stripe'} onChange={() => setPaymentMethod('stripe')} />
-                    <div className="flex gap-1">
-                      <Icon icon="mdi:credit-card-outline" className="text-3xl text-primary" />
+                    <div className="flex flex-wrap gap-1">
                       <Icon icon="logos:visa" className="text-2xl" />
+                      <Icon icon="logos:visaelectron" className="text-2xl" />
                       <Icon icon="logos:mastercard" className="text-2xl" />
+                      <Icon icon="logos:maestro" className="text-2xl" />
                     </div>
                     <div>
                       <span className="font-medium">بطاقة Visa / Mastercard</span>
-                      <p className="text-xs text-brand-muted">دفع آمن عبر Stripe</p>
+                      <p className="text-xs text-brand-muted">Visa · Electron · Mastercard · Maestro</p>
                     </div>
                   </label>
                 ) : (

@@ -49,6 +49,35 @@ const TRUST = [
   { icon: 'mdi:headset', label: 'دعم محلي' },
 ];
 
+const PAYMENT_LOGOS = [
+  { icon: 'logos:visa', label: 'Visa' },
+  { icon: 'logos:visaelectron', label: 'Visa Electron' },
+  { icon: 'logos:mastercard', label: 'Mastercard' },
+  { icon: 'logos:maestro', label: 'Maestro' },
+] as const;
+
+function PaymentMarks({ size = 'md' }: { size?: 'sm' | 'md' }) {
+  const box =
+    size === 'md'
+      ? 'inline-flex h-10 items-center rounded-lg bg-white px-3 shadow-sm'
+      : 'inline-flex h-8 items-center rounded-md border border-brand-sand bg-white px-2.5';
+  const iconCls = size === 'md' ? 'text-[28px]' : 'text-xl';
+
+  return (
+    <div
+      className="flex flex-wrap items-center gap-2"
+      aria-label="نقبل بطاقات Visa و Visa Electron و Mastercard و Maestro"
+    >
+      {PAYMENT_LOGOS.map((card) => (
+        <span key={card.label} className={box} title={card.label}>
+          <Icon icon={card.icon} className={iconCls} aria-hidden />
+          <span className="sr-only">{card.label}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export function Footer() {
   return (
     <footer className="relative mt-auto overflow-hidden">
@@ -75,19 +104,7 @@ export function Footer() {
               </div>
               <div className="mt-6">
                 <p className="mb-2 text-xs font-medium text-brand-gold-light/70">طرق الدفع المقبولة</p>
-                <div
-                  className="flex flex-wrap items-center gap-3"
-                  aria-label="نقبل بطاقات Visa و Mastercard"
-                >
-                  <span className="inline-flex h-10 items-center rounded-lg bg-white px-3 shadow-sm">
-                    <Icon icon="logos:visa" className="text-[28px]" aria-hidden />
-                    <span className="sr-only">Visa</span>
-                  </span>
-                  <span className="inline-flex h-10 items-center rounded-lg bg-white px-3 shadow-sm">
-                    <Icon icon="logos:mastercard" className="text-[28px]" aria-hidden />
-                    <span className="sr-only">Mastercard</span>
-                  </span>
-                </div>
+                <PaymentMarks size="md" />
               </div>
             </motion.div>
 
@@ -141,19 +158,9 @@ export function Footer() {
       >
         <div className="page-shell flex flex-col items-center justify-between gap-4 text-xs text-brand-muted sm:flex-row">
           <p>© {new Date().getFullYear()} {BRAND.nameAr} — جميع الحقوق محفوظة</p>
-          <div
-            className="flex items-center gap-2"
-            aria-label="نقبل بطاقات Visa و Mastercard"
-          >
+          <div className="flex items-center gap-2">
             <span className="text-[11px] text-brand-muted/80">ندعم</span>
-            <span className="inline-flex h-8 items-center rounded-md border border-brand-sand bg-white px-2.5">
-              <Icon icon="logos:visa" className="text-xl" aria-hidden />
-              <span className="sr-only">Visa</span>
-            </span>
-            <span className="inline-flex h-8 items-center rounded-md border border-brand-sand bg-white px-2.5">
-              <Icon icon="logos:mastercard" className="text-xl" aria-hidden />
-              <span className="sr-only">Mastercard</span>
-            </span>
+            <PaymentMarks size="sm" />
           </div>
         </div>
       </div>
