@@ -1,0 +1,81 @@
+name: Fix API (diagnose + restart)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Diagnose and restart APIs
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s <<'REMOTE'
+          set -euo pipefail
+          echo "=== PM2 before ==="
+          pm2 status || true
+
+          echo "=== Docker ==="
+          docker ps --format 'table {{.Names}}\t{{.Status}}' || true
+
+          echo "=== Prod API recent logs ==="
+          pm2 logs abualnus-api --lines 80 --nostream || true
+
+          echo "=== Staging API recent logs ==="
+          pm2 logs mawjood-api-staging --lines 40 --nostream || true
+
+          echo "=== Ensure infra up ==="
+          cd /var/www/abualnus
+          docker compose -f docker-compose.prod.yml --env-file deploy/.env.infra up -d || true
+          if [ -f /var/www/mawjood-staging/docker-compose.staging.yml ]; then
+            cd /var/www/mawjood-staging
+            docker compose -f docker-compose.staging.yml --env-file deploy/.env.staging.infra up -d || true
+          fi
+
+          echo "=== Restart prod API ==="
+          cd /var/www/abualnus
+          # Prefer delete+start so crash loops clear
+          pm2 delete abualnus-api || true
+          pm2 start deploy/ecosystem.config.cjs
+          sleep 3
+          if ! curl -fsS http://127.0.0.1:4000/api/v1/health; then
+            echo
+            echo "Prod still unhealthy — last error log:"
+            pm2 logs abualnus-api --err --lines 60 --nostream || true
+            # Try running once in foreground for stderr
+            cd apps/api
+            timeout 8 node dist/index.js || true
+            exit 1
+          fi
+          echo
+          echo "Prod health OK"
+
+          echo "=== Restart staging API ==="
+          if [ -d /var/www/mawjood-staging ]; then
+            cd /var/www/mawjood-staging
+            pm2 delete mawjood-api-staging || true
+            pm2 start deploy/ecosystem.staging.config.cjs
+            sleep 3
+            curl -fsS http://127.0.0.1:4001/api/v1/health || true
+            echo
+          fi
+
+          pm2 save
+          pm2 status
+          echo FIX_DONE
+          REMOTE
