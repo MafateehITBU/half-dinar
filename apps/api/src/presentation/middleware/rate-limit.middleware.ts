@@ -4,11 +4,11 @@ import { redis } from '../../config/redis.js';
 import { env } from '../../config/env.js';
 
 function createStore(prefix: string): Options['store'] | undefined {
-  // Redis store when connected; falls back to in-memory if Redis is down
+  // Do not issue Redis commands at module load (that races with connectRedis()).
+  // RedisStore only talks to Redis when a request hits the limiter.
   try {
     return new RedisStore({
       prefix: `rl:${prefix}:`,
-      // ioredis
       sendCommand: (...args: string[]) =>
         (redis as unknown as { call: (...a: string[]) => Promise<unknown> }).call(...args) as Promise<number>,
     });
