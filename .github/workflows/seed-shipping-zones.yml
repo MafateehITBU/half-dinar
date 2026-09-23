@@ -1,0 +1,45 @@
+name: Seed Shipping Zones
+
+on:
+  workflow_dispatch:
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Seed shipping on prod and staging
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s <<'REMOTE'
+          set -euo pipefail
+          seed_one() {
+            local dir="$1"
+            echo "=== $dir ==="
+            cd "$dir"
+            if [ -f scripts/seed-shipping-zones.ts ]; then
+              npx tsx scripts/seed-shipping-zones.ts
+            else
+              echo "script missing — sync deploy first"
+              exit 1
+            fi
+          }
+          seed_one /var/www/abualnus/apps/api
+          if [ -d /var/www/mawjood-staging/apps/api ]; then
+            seed_one /var/www/mawjood-staging/apps/api || true
+          fi
+          echo SEED_SHIPPING_DONE
+          REMOTE

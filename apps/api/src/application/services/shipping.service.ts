@@ -27,13 +27,18 @@ export const shippingService = {
   },
 
   async calculateShipping(governorateCode: string, subtotal: number) {
+    const code = governorateCode.trim().toUpperCase();
     const zone = await prisma.shippingZone.findFirst({
-      where: { governorateCode, isActive: true },
+      where: { governorateCode: code, isActive: true },
       include: { rates: true },
     });
 
     if (!zone || !zone.rates[0]) {
-      throw new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Shipping not available for this governorate');
+      throw new AppError(
+        400,
+        ErrorCodes.VALIDATION_ERROR,
+        'الشحن غير متاح لهذه المحافظة. جرّب محافظة أخرى أو تواصل معنا.',
+      );
     }
 
     const threshold = await getFreeShippingThreshold();
