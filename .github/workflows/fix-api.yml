@@ -19,6 +19,63 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
+      - name: Upsert PayTabs env (if secrets present)
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          PAYTABS_PROFILE_ID: ${{ secrets.PAYTABS_PROFILE_ID }}
+          PAYTABS_SERVER_KEY: ${{ secrets.PAYTABS_SERVER_KEY }}
+          PAYTABS_CLIENT_KEY: ${{ secrets.PAYTABS_CLIENT_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PAYTABS_PROFILE_ID:-}" ] || [ -z "${PAYTABS_SERVER_KEY:-}" ]; then
+            echo "PAYTABS secrets not set — skipping env upsert"
+            exit 0
+          fi
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            PAYTABS_PROFILE_ID="$PAYTABS_PROFILE_ID" \
+            PAYTABS_SERVER_KEY="$PAYTABS_SERVER_KEY" \
+            PAYTABS_CLIENT_KEY="${PAYTABS_CLIENT_KEY:-}" \
+            bash -s <<'REMOTE'
+          set -euo pipefail
+          upsert_kv() {
+            local file="$1" key="$2" value="$3"
+            touch "$file"; chmod 600 "$file"
+            python3 - "$file" "$key" "$value" <<'PY'
+import sys
+from pathlib import Path
+path, key, value = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+lines = path.read_text().splitlines() if path.exists() else []
+out, found = [], False
+for line in lines:
+    if line.startswith(key + '='):
+        out.append(f'{key}={value}'); found = True
+    else:
+        out.append(line)
+if not found:
+    out.append(f'{key}={value}')
+path.write_text('\n'.join(out) + '\n')
+PY
+            chmod 600 "$file"
+          }
+          apply() {
+            local file="$1" api="$2" store="$3"
+            upsert_kv "$file" PAYTABS_PROFILE_ID "$PAYTABS_PROFILE_ID"
+            upsert_kv "$file" PAYTABS_SERVER_KEY "$PAYTABS_SERVER_KEY"
+            [ -n "${PAYTABS_CLIENT_KEY:-}" ] && upsert_kv "$file" PAYTABS_CLIENT_KEY "$PAYTABS_CLIENT_KEY"
+            upsert_kv "$file" PAYTABS_REGION JOR
+            upsert_kv "$file" PAYTABS_BASE_URL https://secure-jordan.paytabs.com
+            upsert_kv "$file" API_URL "$api"
+            upsert_kv "$file" STOREFRONT_URL "$store"
+            echo "Updated $file"
+            grep -E '^PAYTABS_' "$file" | sed -E 's/(KEY|SECRET)=.+/\1=***/'
+          }
+          apply /var/www/abualnus/apps/api/.env https://api.mawjood.online https://mawjood.online
+          [ -f /var/www/mawjood-staging/apps/api/.env ] && \
+            apply /var/www/mawjood-staging/apps/api/.env https://api.staging.mawjood.online https://staging.mawjood.online
+          REMOTE
+
       - name: Diagnose and restart APIs
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -45,6 +102,16 @@ jobs:
           if [ -f /var/www/mawjood-staging/docker-compose.staging.yml ]; then
             cd /var/www/mawjood-staging
             docker compose -f docker-compose.staging.yml --env-file deploy/.env.staging.infra up -d || true
+          fi
+
+          # Apply MEPS migration if present
+          if [ -d /var/www/abualnus/apps/api ]; then
+            cd /var/www/abualnus/apps/api
+            npx prisma migrate deploy || true
+          fi
+          if [ -d /var/www/mawjood-staging/apps/api ]; then
+            cd /var/www/mawjood-staging/apps/api
+            npx prisma migrate deploy || true
           fi
 
           echo "=== Restart prod API ==="
@@ -77,5 +144,7 @@ jobs:
 
           pm2 save
           pm2 status
+          cd /var/www/abualnus/apps/api
+          node -e "require('dotenv').config(); console.log('meps configured:', !!(process.env.PAYTABS_PROFILE_ID && process.env.PAYTABS_SERVER_KEY));"
           echo FIX_DONE
           REMOTE
