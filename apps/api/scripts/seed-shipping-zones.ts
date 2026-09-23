@@ -1,6 +1,6 @@
 /**
  * Idempotent seed of Jordan shipping zones + flat rates.
- * Safe to run on production.
+ * Safe to run on production (works even if unique index on governorate_code is missing).
  */
 import { PrismaClient } from '@prisma/client';
 
@@ -17,22 +17,37 @@ const GOVERNORATES = [
   { code: 'MD', nameAr: 'مادبا', nameEn: 'Madaba', rate: 3 },
   { code: 'KA', nameAr: 'الكرك', nameEn: 'Karak', rate: 4.5 },
   { code: 'AT', nameAr: 'الطفيلة', nameEn: 'Tafilah', rate: 5 },
-  { code: 'MN', nameAr: "معان", nameEn: "Ma'an", rate: 5 },
+  { code: 'MN', nameAr: 'معان', nameEn: "Ma'an", rate: 5 },
   { code: 'AQ', nameAr: 'العقبة', nameEn: 'Aqaba', rate: 4.5 },
 ];
 
 async function main() {
+  // Ensure unique index exists (may be missing on older prod DBs)
+  await prisma.$executeRawUnsafe(`
+    CREATE UNIQUE INDEX IF NOT EXISTS "shipping_zones_governorate_code_key"
+    ON "shipping_zones"("governorate_code")
+  `);
+
   for (const gov of GOVERNORATES) {
-    const zone = await prisma.shippingZone.upsert({
+    let zone = await prisma.shippingZone.findFirst({
       where: { governorateCode: gov.code },
-      update: { nameAr: gov.nameAr, nameEn: gov.nameEn, isActive: true },
-      create: {
-        nameAr: gov.nameAr,
-        nameEn: gov.nameEn,
-        governorateCode: gov.code,
-        isActive: true,
-      },
     });
+
+    if (zone) {
+      zone = await prisma.shippingZone.update({
+        where: { id: zone.id },
+        data: { nameAr: gov.nameAr, nameEn: gov.nameEn, isActive: true },
+      });
+    } else {
+      zone = await prisma.shippingZone.create({
+        data: {
+          nameAr: gov.nameAr,
+          nameEn: gov.nameEn,
+          governorateCode: gov.code,
+          isActive: true,
+        },
+      });
+    }
 
     const existingRate = await prisma.shippingRate.findFirst({ where: { zoneId: zone.id } });
     if (existingRate) {
