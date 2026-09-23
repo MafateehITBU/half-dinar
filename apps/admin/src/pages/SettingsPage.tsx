@@ -24,7 +24,9 @@ export function SettingsPage() {
         cookie_banner_text_ar: (d.cookieBanner as { ar?: string })?.ar ?? '',
         loyalty_earn_rate: String(loyalty?.earnRate ?? 1),
         loyalty_redeem_rate: String(loyalty?.redeemRate ?? 100),
-        referral_referrer_reward_jod: '5',
+        referral_referrer_reward_jod: String(
+          (d.referralReferrerRewardJod as number | undefined) ?? 5,
+        ),
       });
     });
   }, []);

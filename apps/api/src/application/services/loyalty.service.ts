@@ -55,6 +55,12 @@ export const loyaltyService = {
 
   async redeemForOrder(userId: string, pointsUsed: number, orderId: string) {
     if (pointsUsed <= 0) return;
+
+    const already = await prisma.loyaltyTransaction.findFirst({
+      where: { orderId, type: 'redeem' },
+    });
+    if (already) return;
+
     const account = await prisma.loyaltyAccount.findUnique({ where: { userId } });
     if (!account || account.pointsBalance < pointsUsed) {
       throw new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Insufficient loyalty points');
@@ -71,6 +77,40 @@ export const loyaltyService = {
           points: -pointsUsed,
           orderId,
           description: 'Redeemed at checkout',
+        },
+      }),
+    ]);
+  },
+
+  /** Undo a checkout redeem when a pending card order is cancelled. */
+  async restoreForOrder(userId: string, pointsUsed: number, orderId: string) {
+    if (pointsUsed <= 0) return;
+
+    const redeem = await prisma.loyaltyTransaction.findFirst({
+      where: { orderId, type: 'redeem' },
+    });
+    if (!redeem) return;
+
+    const already = await prisma.loyaltyTransaction.findFirst({
+      where: { orderId, type: 'restore' },
+    });
+    if (already) return;
+
+    const account = await prisma.loyaltyAccount.findUnique({ where: { userId } });
+    if (!account) return;
+
+    await prisma.$transaction([
+      prisma.loyaltyAccount.update({
+        where: { id: account.id },
+        data: { pointsBalance: { increment: pointsUsed } },
+      }),
+      prisma.loyaltyTransaction.create({
+        data: {
+          accountId: account.id,
+          type: 'restore',
+          points: pointsUsed,
+          orderId,
+          description: 'Restored after cancelled card payment',
         },
       }),
     ]);

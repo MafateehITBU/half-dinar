@@ -14,6 +14,7 @@ import { ReviewsPage } from './pages/ReviewsPage';
 import { RefundsPage } from './pages/RefundsPage';
 import { BulkPage } from './pages/BulkPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ShippingPage } from './pages/ShippingPage';
 import { NewsletterPage } from './pages/NewsletterPage';
 import { ContactMessagesPage } from './pages/ContactMessagesPage';
 import { UsersPage } from './pages/UsersPage';
@@ -41,6 +42,7 @@ export default function App() {
       <Route path="/reviews" element={<Protected><ReviewsPage /></Protected>} />
       <Route path="/refunds" element={<Protected><RefundsPage /></Protected>} />
       <Route path="/bulk" element={<Protected><BulkPage /></Protected>} />
+      <Route path="/shipping" element={<Protected><ShippingPage /></Protected>} />
       <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
       <Route path="/newsletter" element={<Protected><NewsletterPage /></Protected>} />
       <Route path="/contact-messages" element={<Protected><ContactMessagesPage /></Protected>} />

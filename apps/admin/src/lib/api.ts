@@ -357,6 +357,38 @@ export const adminApi = {
   getSettings: () => request<{ data: unknown }>('/admin/settings'),
   updateSettings: (data: Record<string, string | number>) =>
     request('/admin/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+
+  getShippingZones: () =>
+    request<{
+      data: {
+        freeShippingThreshold: number;
+        zones: {
+          id: string;
+          nameAr: string;
+          nameEn: string;
+          governorateCode: string;
+          isActive: boolean;
+          flatRate: number;
+          rateId: string | null;
+        }[];
+      };
+    }>('/admin/shipping/zones'),
+
+  updateShippingZone: (
+    id: string,
+    data: { flatRate?: number; isActive?: boolean; nameAr?: string; nameEn?: string },
+  ) =>
+    request<{ data: unknown }>(`/admin/shipping/zones/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  updateShippingSettings: (data: { freeShippingThreshold: number }) =>
+    request<{ data: { freeShippingThreshold: number } }>('/admin/shipping/settings', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
   getNewsletterSubscribers: (page = 1, limit = 20) =>
     request<PaginatedResponse<unknown>>(`/admin/newsletter${buildQuery({ page, limit })}`),
 

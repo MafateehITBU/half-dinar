@@ -1,6 +1,7 @@
 /**
- * Idempotent seed of Jordan shipping zones + flat rates.
+ * Idempotent seed of Jordan shipping zones + flat rates + admin shipping permissions.
  * Safe to run on production (works even if unique index on governorate_code is missing).
+ * Does not overwrite existing flat rates (so dashboard edits are preserved).
  */
 import { PrismaClient } from '@prisma/client';
 
@@ -21,8 +22,41 @@ const GOVERNORATES = [
   { code: 'AQ', nameAr: 'العقبة', nameEn: 'Aqaba', rate: 4.5 },
 ];
 
+const SHIPPING_PERMS = [
+  { slug: 'shipping:read', nameAr: 'قراءة الشحن', nameEn: 'Read Shipping' },
+  { slug: 'shipping:write', nameAr: 'كتابة الشحن', nameEn: 'Write Shipping' },
+] as const;
+
+async function seedShippingPermissions() {
+  const permIds: string[] = [];
+  for (const p of SHIPPING_PERMS) {
+    const row = await prisma.permission.upsert({
+      where: { slug: p.slug },
+      update: { nameAr: p.nameAr, nameEn: p.nameEn },
+      create: { slug: p.slug, nameAr: p.nameAr, nameEn: p.nameEn, description: '' },
+    });
+    permIds.push(row.id);
+    console.log(`permission ${p.slug} ok`);
+  }
+
+  const roles = await prisma.role.findMany({
+    where: { slug: { in: ['super_admin', 'admin'] } },
+  });
+  for (const role of roles) {
+    for (const permissionId of permIds) {
+      await prisma.rolePermission.upsert({
+        where: {
+          roleId_permissionId: { roleId: role.id, permissionId },
+        },
+        update: {},
+        create: { roleId: role.id, permissionId },
+      });
+    }
+    console.log(`role ${role.slug} shipping perms ok`);
+  }
+}
+
 async function main() {
-  // Ensure unique index exists (may be missing on older prod DBs)
   await prisma.$executeRawUnsafe(`
     CREATE UNIQUE INDEX IF NOT EXISTS "shipping_zones_governorate_code_key"
     ON "shipping_zones"("governorate_code")
@@ -50,12 +84,7 @@ async function main() {
     }
 
     const existingRate = await prisma.shippingRate.findFirst({ where: { zoneId: zone.id } });
-    if (existingRate) {
-      await prisma.shippingRate.update({
-        where: { id: existingRate.id },
-        data: { flatRate: gov.rate },
-      });
-    } else {
+    if (!existingRate) {
       await prisma.shippingRate.create({
         data: { zoneId: zone.id, flatRate: gov.rate },
       });
@@ -65,6 +94,8 @@ async function main() {
 
   const count = await prisma.shippingZone.count({ where: { isActive: true } });
   console.log(`active zones: ${count}`);
+
+  await seedShippingPermissions();
 }
 
 main()

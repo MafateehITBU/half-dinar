@@ -25,6 +25,7 @@ export const settingsService = {
       'cookie_banner_text_en',
       'loyalty_earn_rate',
       'loyalty_redeem_rate',
+      'referral_referrer_reward_jod',
     ];
     const rows = await prisma.setting.findMany({ where: { key: { in: keys } } });
     const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
@@ -44,6 +45,7 @@ export const settingsService = {
         earnRate: (map.loyalty_earn_rate as number) ?? 1,
         redeemRate: (map.loyalty_redeem_rate as number) ?? 100,
       },
+      referralReferrerRewardJod: Number(map.referral_referrer_reward_jod ?? 5),
       meps: {
         enabled: env.isMepsConfigured,
       },

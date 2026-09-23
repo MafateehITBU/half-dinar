@@ -66,6 +66,8 @@ const PERMISSION_LABELS: Record<
   [PERMISSIONS.USERS_WRITE]: { nameAr: 'كتابة المستخدمين', nameEn: 'Write Users', description: '' },
   [PERMISSIONS.SETTINGS_READ]: { nameAr: 'قراءة الإعدادات', nameEn: 'Read Settings', description: '' },
   [PERMISSIONS.SETTINGS_WRITE]: { nameAr: 'كتابة الإعدادات', nameEn: 'Write Settings', description: '' },
+  [PERMISSIONS.SHIPPING_READ]: { nameAr: 'قراءة الشحن', nameEn: 'Read Shipping', description: '' },
+  [PERMISSIONS.SHIPPING_WRITE]: { nameAr: 'كتابة الشحن', nameEn: 'Write Shipping', description: '' },
   [PERMISSIONS.AUDIT_READ]: { nameAr: 'قراءة السجلات', nameEn: 'Read Audit Logs', description: '' },
   [PERMISSIONS.REFUNDS_READ]: { nameAr: 'قراءة المرتجعات', nameEn: 'Read Refunds', description: '' },
   [PERMISSIONS.REFUNDS_WRITE]: { nameAr: 'كتابة المرتجعات', nameEn: 'Write Refunds', description: '' },

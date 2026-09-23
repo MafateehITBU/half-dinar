@@ -4,6 +4,7 @@ export * from './validators/category.js';
 export * from './validators/product.js';
 export * from './validators/cart.js';
 export * from './validators/checkout.js';
+export * from './validators/shipping.js';
 export * from './validators/promotion.js';
 export * from './validators/cms.js';
 export * from './validators/package.js';

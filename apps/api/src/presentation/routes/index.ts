@@ -25,6 +25,7 @@ import { newsletterRouter, adminNewsletterRouter } from './newsletter.routes.js'
 import { contactRouter, adminContactRouter } from './contact.routes.js';
 import { publicRouter, adminSettingsRouter } from './public.routes.js';
 import { adminUsersRouter } from './admin-users.routes.js';
+import { adminShippingRouter } from './shipping.routes.js';
 
 export const v1Router = Router();
 
@@ -66,6 +67,7 @@ v1Router.use('/admin/newsletter', adminNewsletterRouter);
 v1Router.use('/contact', contactRouter);
 v1Router.use('/admin/contact-messages', adminContactRouter);
 v1Router.use('/admin/settings', adminSettingsRouter);
+v1Router.use('/admin/shipping', adminShippingRouter);
 v1Router.use('/admin/users', adminUsersRouter);
 
 v1Router.get('/', (_req, res) => {

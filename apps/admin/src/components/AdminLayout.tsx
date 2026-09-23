@@ -40,6 +40,7 @@ const NAV = [
     title: 'النظام',
     items: [
       { to: '/bulk', label: 'استيراد/تصدير', icon: 'mdi:file-delimited-outline' },
+      { to: '/shipping', label: 'أسعار الشحن', icon: 'mdi:truck-outline' },
       { to: '/settings', label: 'الإعدادات', icon: 'mdi:cog-outline' },
     ],
   },

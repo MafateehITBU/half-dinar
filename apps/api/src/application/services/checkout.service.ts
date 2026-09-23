@@ -95,6 +95,7 @@ async function revertPendingCardOrder(orderId: string, note: string) {
     include: { items: true },
   });
   if (!order || order.status === 'cancelled') return;
+  if (order.paymentStatus === 'paid') return;
 
   await prisma.$transaction(async (tx) => {
     for (const item of order.items) {
@@ -136,6 +137,14 @@ async function revertPendingCardOrder(orderId: string, note: string) {
         }
       }
     }
+
+    if (order.couponId) {
+      await tx.coupon.updateMany({
+        where: { id: order.couponId, usedCount: { gt: 0 } },
+        data: { usedCount: { decrement: 1 } },
+      });
+    }
+
     await tx.order.update({
       where: { id: orderId },
       data: { status: 'cancelled', paymentStatus: 'pending' },
@@ -150,23 +159,45 @@ async function revertPendingCardOrder(orderId: string, note: string) {
       },
     });
   });
+
+  if (order.loyaltyPointsUsed > 0) {
+    await loyaltyService.restoreForOrder(order.userId, order.loyaltyPointsUsed, order.id);
+  }
 }
 
-async function markOrderPaid(orderId: string, fromStatus: string, note: string, tranRef?: string) {
-  await prisma.$transaction(async (tx) => {
-    await tx.order.update({
-      where: { id: orderId },
+/**
+ * Idempotent MEPS settlement: coupon + loyalty are reserved at placeOrder;
+ * here we only flip payment status once and clear the cart.
+ */
+async function markOrderPaid(orderId: string, note: string, tranRef?: string) {
+  const settled = await prisma.$transaction(async (tx) => {
+    const existing = await tx.order.findFirst({
+      where: {
+        id: orderId,
+        paymentMethod: 'meps',
+        paymentStatus: { not: 'paid' },
+      },
+    });
+    if (!existing) return null;
+
+    const claimed = await tx.order.updateMany({
+      where: {
+        id: orderId,
+        paymentStatus: existing.paymentStatus,
+      },
       data: {
         status: 'processing',
         paymentStatus: 'paid',
         ...(tranRef ? { paytabsTranRef: tranRef } : {}),
       },
     });
+    if (claimed.count === 0) return null;
+
     await tx.orderStatusHistory.createMany({
       data: [
         {
           orderId,
-          fromStatus: fromStatus as never,
+          fromStatus: existing.status,
           toStatus: 'paid',
           note,
           createdBy: 'system',
@@ -180,8 +211,14 @@ async function markOrderPaid(orderId: string, fromStatus: string, note: string, 
         },
       ],
     });
+    return existing;
   });
+
+  if (!settled) return { alreadyPaid: true as const };
+
+  await cartService.clearCart(settled.userId);
   await sendOrderConfirmationEmail(orderId);
+  return { alreadyPaid: false as const };
 }
 
 export const checkoutService = {
@@ -397,6 +434,20 @@ export const checkoutService = {
 
     let redirectUrl: string | undefined;
 
+    if (pricing.loyaltyPointsUsed > 0) {
+      try {
+        await loyaltyService.redeemForOrder(userId, pricing.loyaltyPointsUsed, order.id);
+      } catch (err) {
+        if (input.paymentMethod === 'meps') {
+          await revertPendingCardOrder(
+            order.id,
+            'Loyalty redeem failed — MEPS order cancelled',
+          );
+        }
+        throw err;
+      }
+    }
+
     if (input.paymentMethod === 'meps') {
       try {
         const payment = await createHostedPayment({
@@ -432,15 +483,8 @@ export const checkoutService = {
           err instanceof Error ? err.message : 'فشل إنشاء صفحة الدفع',
         );
       }
-    }
-
-    await cartService.clearCart(userId);
-
-    if (pricing.loyaltyPointsUsed > 0) {
-      await loyaltyService.redeemForOrder(userId, pricing.loyaltyPointsUsed, order.id);
-    }
-
-    if (input.paymentMethod !== 'meps') {
+    } else {
+      await cartService.clearCart(userId);
       await sendOrderConfirmationEmail(order.id);
     }
 
@@ -486,7 +530,7 @@ export const checkoutService = {
     }
 
     const tranRef = pickPaytabsTranRef(result) ?? order.paytabsTranRef ?? undefined;
-    await markOrderPaid(orderId, order.status, 'MEPS/PayTabs payment confirmed', tranRef);
+    await markOrderPaid(orderId, 'MEPS/PayTabs payment confirmed', tranRef);
 
     return orderService.getById(orderId, userId);
   },
@@ -524,7 +568,6 @@ export const checkoutService = {
 
     await markOrderPaid(
       order.id,
-      order.status,
       'MEPS/PayTabs callback: payment succeeded',
       payload.tran_ref,
     );
