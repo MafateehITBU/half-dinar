@@ -1,0 +1,46 @@
+name: Verify Cloudinary
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Check Cloudinary on VPS
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s <<'REMOTE'
+          set -euo pipefail
+          check() {
+            local dir="$1" label="$2"
+            echo "=== $label ==="
+            grep -E '^CLOUDINARY_(CLOUD_NAME|API_KEY|API_SECRET)=' "$dir/.env" | sed -E 's/=.+/=***/' || echo "MISSING KEYS"
+            cd "$dir"
+            node -e "
+              require('dotenv').config();
+              const ok = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+              console.log('dotenv cloudinary:', ok);
+              process.exit(ok ? 0 : 1);
+            "
+          }
+          check /var/www/abualnus/apps/api prod
+          check /var/www/mawjood-staging/apps/api staging
+          curl -fsS http://127.0.0.1:4000/api/v1/health; echo
+          curl -fsS http://127.0.0.1:4001/api/v1/health; echo
+          echo VERIFY_OK
+          REMOTE
