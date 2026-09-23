@@ -1,4 +1,4 @@
-name: Fix API (diagnose + restart)
+name: Restart APIs
 
 on:
   workflow_dispatch:
