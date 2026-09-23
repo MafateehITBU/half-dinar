@@ -1,0 +1,101 @@
+name: Configure Cloudinary on VPS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Upsert CLOUDINARY_* into prod + staging API .env and restart
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDINARY_CLOUD_NAME}"
+          test -n "${CLOUDINARY_API_KEY}"
+          test -n "${CLOUDINARY_API_SECRET}"
+
+          # Write secrets into a remote-only script via SSH env (not logged)
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            CLOUDINARY_CLOUD_NAME="$CLOUDINARY_CLOUD_NAME" \
+            CLOUDINARY_API_KEY="$CLOUDINARY_API_KEY" \
+            CLOUDINARY_API_SECRET="$CLOUDINARY_API_SECRET" \
+            bash -s <<'REMOTE'
+          set -euo pipefail
+
+          upsert_kv() {
+            local file="$1" key="$2" value="$3"
+            touch "$file"
+            chmod 600 "$file"
+            if grep -qE "^${key}=" "$file"; then
+              # Replace existing line (portable)
+              awk -v k="$key" -v v="$value" 'BEGIN{FS=OFS="="} $1==k{$0=k"="v} {print}' "$file" > "${file}.tmp"
+              mv "${file}.tmp" "$file"
+              chmod 600 "$file"
+            else
+              printf '%s=%s\n' "$key" "$value" >> "$file"
+            fi
+          }
+
+          apply_env() {
+            local file="$1"
+            upsert_kv "$file" CLOUDINARY_CLOUD_NAME "$CLOUDINARY_CLOUD_NAME"
+            upsert_kv "$file" CLOUDINARY_API_KEY "$CLOUDINARY_API_KEY"
+            upsert_kv "$file" CLOUDINARY_API_SECRET "$CLOUDINARY_API_SECRET"
+            # Presence check only
+            echo "Updated $file:"
+            grep -E '^CLOUDINARY_(CLOUD_NAME|API_KEY|API_SECRET)=' "$file" | sed -E 's/=.+/=***/'
+          }
+
+          apply_env /var/www/abualnus/apps/api/.env
+          if [ -f /var/www/mawjood-staging/apps/api/.env ]; then
+            apply_env /var/www/mawjood-staging/apps/api/.env
+          fi
+
+          echo "=== Restart prod API ==="
+          cd /var/www/abualnus
+          pm2 delete abualnus-api || true
+          pm2 start deploy/ecosystem.config.cjs
+          sleep 3
+          curl -fsS http://127.0.0.1:4000/api/v1/health
+          echo
+
+          if [ -d /var/www/mawjood-staging ]; then
+            echo "=== Restart staging API ==="
+            cd /var/www/mawjood-staging
+            pm2 delete mawjood-api-staging || true
+            pm2 start deploy/ecosystem.staging.config.cjs
+            sleep 3
+            curl -fsS http://127.0.0.1:4001/api/v1/health || true
+            echo
+          fi
+
+          pm2 save
+          # Verify process sees Cloudinary without printing secrets
+          cd /var/www/abualnus/apps/api
+          node -e "
+            require('dotenv').config();
+            const ok = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+            console.log('prod cloudinary configured:', ok);
+            if (!ok) process.exit(1);
+          "
+
+          echo CLOUDINARY_CONFIGURED
+          REMOTE
