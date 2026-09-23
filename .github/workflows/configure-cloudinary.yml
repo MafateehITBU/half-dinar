@@ -44,14 +44,23 @@ jobs:
             local file="$1" key="$2" value="$3"
             touch "$file"
             chmod 600 "$file"
-            if grep -qE "^${key}=" "$file"; then
-              # Replace existing line (portable)
-              awk -v k="$key" -v v="$value" 'BEGIN{FS=OFS="="} $1==k{$0=k"="v} {print}' "$file" > "${file}.tmp"
-              mv "${file}.tmp" "$file"
-              chmod 600 "$file"
-            else
-              printf '%s=%s\n' "$key" "$value" >> "$file"
-            fi
+            python3 - "$file" "$key" "$value" <<'PY'
+import sys
+from pathlib import Path
+path, key, value = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+lines = path.read_text().splitlines() if path.exists() else []
+out, found = [], False
+for line in lines:
+    if line.startswith(key + '='):
+        out.append(f'{key}={value}')
+        found = True
+    else:
+        out.append(line)
+if not found:
+    out.append(f'{key}={value}')
+path.write_text('\n'.join(out) + '\n')
+PY
+            chmod 600 "$file"
           }
 
           apply_env() {
@@ -73,7 +82,12 @@ jobs:
           cd /var/www/abualnus
           pm2 delete abualnus-api || true
           pm2 start deploy/ecosystem.config.cjs
-          sleep 3
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS http://127.0.0.1:4000/api/v1/health >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
           curl -fsS http://127.0.0.1:4000/api/v1/health
           echo
 
@@ -82,7 +96,12 @@ jobs:
             cd /var/www/mawjood-staging
             pm2 delete mawjood-api-staging || true
             pm2 start deploy/ecosystem.staging.config.cjs
-            sleep 3
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              if curl -fsS http://127.0.0.1:4001/api/v1/health >/dev/null 2>&1; then
+                break
+              fi
+              sleep 2
+            done
             curl -fsS http://127.0.0.1:4001/api/v1/health || true
             echo
           fi
@@ -96,6 +115,15 @@ jobs:
             console.log('prod cloudinary configured:', ok);
             if (!ok) process.exit(1);
           "
+          if [ -f /var/www/mawjood-staging/apps/api/.env ]; then
+            cd /var/www/mawjood-staging/apps/api
+            node -e "
+              require('dotenv').config();
+              const ok = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+              console.log('staging cloudinary configured:', ok);
+              if (!ok) process.exit(1);
+            "
+          fi
 
           echo CLOUDINARY_CONFIGURED
           REMOTE
