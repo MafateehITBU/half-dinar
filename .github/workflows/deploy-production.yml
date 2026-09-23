@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: deploy-production
+  group: deploy-production-vps
   cancel-in-progress: false
 
 jobs:
@@ -27,10 +27,7 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          # Prefer accept-new over keyscan (keyscan can fail intermittently on some VPS firewalls)
           ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
-          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
-            -o ConnectTimeout=15 "root@${DEPLOY_HOST}" 'echo ssh_ok' || \
           ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
             -o ConnectTimeout=15 "${{ secrets.DEPLOY_USER }}@${DEPLOY_HOST}" 'echo ssh_ok'
 
@@ -55,63 +52,7 @@ jobs:
             --exclude 'policy/' \
             ./ "${DEPLOY_USER}@${DEPLOY_HOST}:/var/www/abualnus/"
 
-      - name: Upsert PayTabs env on server
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          PAYTABS_PROFILE_ID: ${{ secrets.PAYTABS_PROFILE_ID }}
-          PAYTABS_SERVER_KEY: ${{ secrets.PAYTABS_SERVER_KEY }}
-          PAYTABS_CLIENT_KEY: ${{ secrets.PAYTABS_CLIENT_KEY }}
-        run: |
-          set -euo pipefail
-          if [ -z "${PAYTABS_PROFILE_ID:-}" ] || [ -z "${PAYTABS_SERVER_KEY:-}" ]; then
-            echo "PAYTABS secrets missing — card payments will stay disabled"
-            exit 0
-          fi
-          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
-            "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            PAYTABS_PROFILE_ID="$PAYTABS_PROFILE_ID" \
-            PAYTABS_SERVER_KEY="$PAYTABS_SERVER_KEY" \
-            PAYTABS_CLIENT_KEY="${PAYTABS_CLIENT_KEY:-}" \
-            bash -s <<'REMOTE'
-          set -euo pipefail
-          file=/var/www/abualnus/apps/api/.env
-          touch "$file"; chmod 600 "$file"
-          python3 - "$file" <<'PY'
-import os, sys
-from pathlib import Path
-path = Path(sys.argv[1])
-vals = {
-  'PAYTABS_PROFILE_ID': os.environ['PAYTABS_PROFILE_ID'],
-  'PAYTABS_SERVER_KEY': os.environ['PAYTABS_SERVER_KEY'],
-  'PAYTABS_CLIENT_KEY': os.environ.get('PAYTABS_CLIENT_KEY') or '',
-  'PAYTABS_REGION': 'JOR',
-  'PAYTABS_BASE_URL': 'https://secure-jordan.paytabs.com',
-  'API_URL': 'https://api.mawjood.online',
-  'STOREFRONT_URL': 'https://mawjood.online',
-}
-lines = path.read_text().splitlines() if path.exists() else []
-out, seen = [], set()
-for line in lines:
-    if '=' in line and not line.strip().startswith('#'):
-        k = line.split('=', 1)[0].strip()
-        if k in vals:
-            if vals[k] != '' or k != 'PAYTABS_CLIENT_KEY':
-                out.append(f'{k}={vals[k]}')
-            else:
-                out.append(line)
-            seen.add(k)
-            continue
-    out.append(line)
-for k, v in vals.items():
-    if k not in seen and v != '':
-        out.append(f'{k}={v}')
-path.write_text('\n'.join(out) + '\n')
-print('PayTabs env upserted')
-PY
-          REMOTE
-
-      - name: Remote build & reload
+      - name: Remote build and reload
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
