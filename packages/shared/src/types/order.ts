@@ -30,7 +30,7 @@ export interface OrderSummary {
   id: string;
   orderNumber: string;
   status: OrderStatus;
-  paymentMethod: 'cod' | 'stripe';
+  paymentMethod: 'cod' | 'stripe' | 'meps';
   paymentStatus: string;
   subtotal: number;
   shippingAmount: number;
@@ -62,7 +62,7 @@ export interface CheckoutQuote {
 
 export interface PlaceOrderResult {
   order: OrderDetail;
-  clientSecret?: string;
+  redirectUrl?: string;
 }
 
 export interface ShippingZoneOption {

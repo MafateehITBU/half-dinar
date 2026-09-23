@@ -2,7 +2,7 @@ import { Router } from 'express';
 import {
   checkoutQuoteSchema,
   placeOrderSchema,
-  stripeConfirmSchema,
+  mepsConfirmSchema,
   validateCouponSchema,
 } from '@half-dinar/shared';
 import { checkoutService } from '../../application/services/checkout.service.js';
@@ -75,13 +75,12 @@ checkoutRouter.post(
 );
 
 checkoutRouter.post(
-  '/stripe/confirm',
+  '/meps/confirm',
   asyncHandler(async (req, res) => {
-    const input = stripeConfirmSchema.parse(req.body);
-    const order = await checkoutService.confirmStripePayment(
+    const input = mepsConfirmSchema.parse(req.body);
+    const order = await checkoutService.confirmMepsPayment(
       input.orderId,
       (req as AuthenticatedRequest).user!.sub,
-      input.paymentIntentId,
     );
     res.json({ data: order });
   }),

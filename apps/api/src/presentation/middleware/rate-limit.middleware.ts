@@ -64,7 +64,7 @@ export const authSensitiveLimiter = buildLimiter(
 /** Refresh token endpoint. */
 export const refreshLimiter = buildLimiter('refresh', 15 * 60 * 1000, 60);
 
-/** Checkout mutating endpoints (place-order, stripe confirm, quote). */
+/** Checkout mutating endpoints (place-order, meps confirm, quote). */
 export const checkoutLimiter = buildLimiter(
   'checkout',
   15 * 60 * 1000,

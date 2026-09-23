@@ -26,6 +26,7 @@ enum OrderStatus {
 enum PaymentMethod {
   cod
   stripe
+  meps
 }
 
 enum PaymentStatus {
@@ -507,6 +508,7 @@ model Order {
   paymentMethod         PaymentMethod @map("payment_method")
   paymentStatus         PaymentStatus @default(pending) @map("payment_status")
   stripePaymentIntentId String?       @map("stripe_payment_intent_id")
+  paytabsTranRef        String?       @map("paytabs_tran_ref")
   loyaltyPointsUsed     Int           @default(0) @map("loyalty_points_used")
   loyaltyPointsEarned   Int           @default(0) @map("loyalty_points_earned")
   referralCodeUsed      String?       @map("referral_code_used")

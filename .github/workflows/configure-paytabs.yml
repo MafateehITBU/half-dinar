@@ -1,0 +1,121 @@
+name: Configure PayTabs on VPS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Upsert PAYTABS_* into prod + staging and restart APIs
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          PAYTABS_PROFILE_ID: ${{ secrets.PAYTABS_PROFILE_ID }}
+          PAYTABS_SERVER_KEY: ${{ secrets.PAYTABS_SERVER_KEY }}
+          PAYTABS_CLIENT_KEY: ${{ secrets.PAYTABS_CLIENT_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${PAYTABS_PROFILE_ID}"
+          test -n "${PAYTABS_SERVER_KEY}"
+
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            PAYTABS_PROFILE_ID="$PAYTABS_PROFILE_ID" \
+            PAYTABS_SERVER_KEY="$PAYTABS_SERVER_KEY" \
+            PAYTABS_CLIENT_KEY="${PAYTABS_CLIENT_KEY:-}" \
+            bash -s <<'REMOTE'
+          set -euo pipefail
+
+          upsert_kv() {
+            local file="$1" key="$2" value="$3"
+            touch "$file"
+            chmod 600 "$file"
+            python3 - "$file" "$key" "$value" <<'PY'
+import sys
+from pathlib import Path
+path, key, value = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+lines = path.read_text().splitlines() if path.exists() else []
+out, found = [], False
+for line in lines:
+    if line.startswith(key + '='):
+        out.append(f'{key}={value}')
+        found = True
+    else:
+        out.append(line)
+if not found:
+    out.append(f'{key}={value}')
+path.write_text('\n'.join(out) + '\n')
+PY
+            chmod 600 "$file"
+          }
+
+          apply_env() {
+            local file="$1" api_url="$2" store_url="$3"
+            upsert_kv "$file" PAYTABS_PROFILE_ID "$PAYTABS_PROFILE_ID"
+            upsert_kv "$file" PAYTABS_SERVER_KEY "$PAYTABS_SERVER_KEY"
+            if [ -n "${PAYTABS_CLIENT_KEY:-}" ]; then
+              upsert_kv "$file" PAYTABS_CLIENT_KEY "$PAYTABS_CLIENT_KEY"
+            fi
+            upsert_kv "$file" PAYTABS_REGION JOR
+            upsert_kv "$file" PAYTABS_BASE_URL https://secure-jordan.paytabs.com
+            # Ensure API_URL / STOREFRONT_URL for return + callback
+            upsert_kv "$file" API_URL "$api_url"
+            upsert_kv "$file" STOREFRONT_URL "$store_url"
+            echo "Updated $file:"
+            grep -E '^(PAYTABS_|API_URL|STOREFRONT_URL)=' "$file" | sed -E 's/(KEY|SECRET)=.+/\1=***/'
+          }
+
+          apply_env /var/www/abualnus/apps/api/.env \
+            https://api.mawjood.online \
+            https://mawjood.online
+          if [ -f /var/www/mawjood-staging/apps/api/.env ]; then
+            apply_env /var/www/mawjood-staging/apps/api/.env \
+              https://api.staging.mawjood.online \
+              https://staging.mawjood.online
+          fi
+
+          echo "=== Restart prod API ==="
+          cd /var/www/abualnus
+          pm2 delete abualnus-api || true
+          pm2 start deploy/ecosystem.config.cjs
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            curl -fsS http://127.0.0.1:4000/api/v1/health >/dev/null 2>&1 && break
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:4000/api/v1/health; echo
+
+          if [ -d /var/www/mawjood-staging ]; then
+            echo "=== Restart staging API ==="
+            cd /var/www/mawjood-staging
+            pm2 delete mawjood-api-staging || true
+            pm2 start deploy/ecosystem.staging.config.cjs
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              curl -fsS http://127.0.0.1:4001/api/v1/health >/dev/null 2>&1 && break
+              sleep 2
+            done
+            curl -fsS http://127.0.0.1:4001/api/v1/health || true
+            echo
+          fi
+
+          pm2 save
+          cd /var/www/abualnus/apps/api
+          node -e "
+            require('dotenv').config();
+            const ok = !!(process.env.PAYTABS_PROFILE_ID && process.env.PAYTABS_SERVER_KEY);
+            console.log('prod meps configured:', ok);
+            if (!ok) process.exit(1);
+          "
+          echo PAYTABS_CONFIGURED
+          REMOTE

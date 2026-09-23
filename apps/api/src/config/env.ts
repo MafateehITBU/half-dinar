@@ -24,10 +24,17 @@ const envSchema = z.object({
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
-  /** Stripe charge currency (many test accounts do not support jod — use usd + rate). */
+  /** @deprecated Stripe — leftover optional; checkout uses MEPS/PayTabs. */
   STRIPE_CHARGE_CURRENCY: z.string().default('usd'),
-  /** JOD → USD when STRIPE_CHARGE_CURRENCY is not jod (~1.41 peg). */
   STRIPE_JOD_TO_USD: z.coerce.number().positive().default(1.41),
+  /** MEPS / PayTabs Jordan */
+  PAYTABS_PROFILE_ID: z.string().optional(),
+  PAYTABS_SERVER_KEY: z.string().optional(),
+  PAYTABS_CLIENT_KEY: z.string().optional(),
+  PAYTABS_REGION: z.string().default('JOR'),
+  PAYTABS_BASE_URL: z.string().url().default('https://secure-jordan.paytabs.com'),
+  /** Override callback for local tunnels (ngrok). Defaults to API_URL/webhooks/paytabs */
+  PAYTABS_CALLBACK_URL: z.string().url().optional(),
   STOREFRONT_URL: z.string().url().default('http://localhost:5173'),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().optional(),
@@ -54,6 +61,13 @@ export const env = {
   ),
   stripeChargeCurrency: parsed.data.STRIPE_CHARGE_CURRENCY.toLowerCase(),
   stripeJodToUsd: parsed.data.STRIPE_JOD_TO_USD,
+  isMepsConfigured: Boolean(
+    parsed.data.PAYTABS_PROFILE_ID && parsed.data.PAYTABS_SERVER_KEY,
+  ),
+  paytabsProfileId: parsed.data.PAYTABS_PROFILE_ID ?? '',
+  paytabsServerKey: parsed.data.PAYTABS_SERVER_KEY ?? '',
+  paytabsClientKey: parsed.data.PAYTABS_CLIENT_KEY ?? '',
+  paytabsBaseUrl: parsed.data.PAYTABS_BASE_URL.replace(/\/$/, ''),
   isSmtpConfigured: Boolean(
     parsed.data.SMTP_HOST && parsed.data.SMTP_USER && parsed.data.SMTP_PASS,
   ),

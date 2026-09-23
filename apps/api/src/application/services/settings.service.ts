@@ -44,9 +44,8 @@ export const settingsService = {
         earnRate: (map.loyalty_earn_rate as number) ?? 1,
         redeemRate: (map.loyalty_redeem_rate as number) ?? 100,
       },
-      stripe: {
-        enabled: env.isStripePublicReady,
-        publishableKey: env.stripePublishableKey,
+      meps: {
+        enabled: env.isMepsConfigured,
       },
     };
   },

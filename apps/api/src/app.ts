@@ -42,8 +42,8 @@ export function createApp() {
     }),
   );
 
-  // Stripe webhooks require raw body — mounted before JSON parser
-  app.use('/api/v1/webhooks/stripe', express.raw({ type: 'application/json' }), webhooksRouter);
+  // PayTabs / MEPS callbacks require raw body for HMAC signature verification
+  app.use('/api/v1/webhooks/paytabs', express.raw({ type: 'application/json' }), webhooksRouter);
 
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));

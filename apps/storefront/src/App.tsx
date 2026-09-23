@@ -22,6 +22,7 @@ import { ComparePage } from './pages/ComparePage';
 import { AccountPage } from './pages/AccountPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { MepsReturnPage } from './pages/MepsReturnPage';
 
 export default function App() {
   return (
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/products/:slug" element={<ProductPage />} />
         <Route path="/cart" element={<CartPage />} />
         <Route path="/checkout" element={<CheckoutPage />} />
+        <Route path="/checkout/meps/return" element={<MepsReturnPage />} />
         <Route path="/order-success/:id" element={<OrderSuccessPage />} />
         <Route path="/orders" element={<OrdersPage />} />
         <Route path="/orders/:id" element={<OrderDetailPage />} />

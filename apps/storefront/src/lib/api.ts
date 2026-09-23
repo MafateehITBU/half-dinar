@@ -3,7 +3,7 @@ import { formatApiError } from './errors.js';
 const API_BASE = '/api/v1';
 
 export interface PublicConfig {
-  stripe?: { enabled: boolean; publishableKey: string };
+  meps?: { enabled: boolean };
 }
 
 function getAuthHeaders(): HeadersInit {
@@ -162,10 +162,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  confirmStripePayment: (orderId: string, paymentIntentId: string) =>
-    request('/checkout/stripe/confirm', {
+  confirmMepsPayment: (orderId: string) =>
+    request('/checkout/meps/confirm', {
       method: 'POST',
-      body: JSON.stringify({ orderId, paymentIntentId }),
+      body: JSON.stringify({ orderId }),
     }),
   getOrders: () => request<{ data: unknown[] }>('/orders'),
   getOrder: (id: string) => request<{ data: unknown }>(`/orders/${id}`),

@@ -6,8 +6,13 @@ import { shippingService } from './shipping.service.js';
 import { orderService } from './order.service.js';
 import { promotionService } from './promotion.service.js';
 import { env } from '../../config/env.js';
-import { requireStripe, stripeErrorMessage } from '../../config/stripe.js';
-import { jodTotalToStripeCharge } from '../../shared/stripe-money.js';
+import {
+  createHostedPayment,
+  isPaytabsAuthorised,
+  pickPaytabsTranRef,
+  queryTransaction,
+  verifyCallbackSignature,
+} from '../../config/paytabs.js';
 import { searchService } from './search.service.js';
 import { inventoryService } from './inventory.service.js';
 import { loadPackage } from './package.service.js';
@@ -23,7 +28,13 @@ async function applyCoupon(
 ) {
   const { shippingAmount } = await shippingService.calculateShipping(governorateCode, cart.subtotal);
   if (!couponCode) {
-    return { subtotal: cart.subtotal, shippingAmount, discountAmount: 0, couponId: null as string | null, total: cart.subtotal + shippingAmount };
+    return {
+      subtotal: cart.subtotal,
+      shippingAmount,
+      discountAmount: 0,
+      couponId: null as string | null,
+      total: cart.subtotal + shippingAmount,
+    };
   }
   const coupon = await promotionService.validateCoupon(couponCode, userId, cart, shippingAmount);
   const total = cart.subtotal + coupon.shippingAmount - coupon.discountAmount;
@@ -78,7 +89,7 @@ async function sendOrderConfirmationEmail(orderId: string) {
     .catch(() => {});
 }
 
-async function revertPendingStripeOrder(orderId: string) {
+async function revertPendingCardOrder(orderId: string, note: string) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { items: true },
@@ -134,11 +145,43 @@ async function revertPendingStripeOrder(orderId: string) {
         orderId,
         fromStatus: order.status,
         toStatus: 'cancelled',
-        note: 'Stripe payment intent failed — order cancelled',
+        note,
         createdBy: 'system',
       },
     });
   });
+}
+
+async function markOrderPaid(orderId: string, fromStatus: string, note: string, tranRef?: string) {
+  await prisma.$transaction(async (tx) => {
+    await tx.order.update({
+      where: { id: orderId },
+      data: {
+        status: 'processing',
+        paymentStatus: 'paid',
+        ...(tranRef ? { paytabsTranRef: tranRef } : {}),
+      },
+    });
+    await tx.orderStatusHistory.createMany({
+      data: [
+        {
+          orderId,
+          fromStatus: fromStatus as never,
+          toStatus: 'paid',
+          note,
+          createdBy: 'system',
+        },
+        {
+          orderId,
+          fromStatus: 'paid',
+          toStatus: 'processing',
+          note: 'Order processing after payment',
+          createdBy: 'system',
+        },
+      ],
+    });
+  });
+  await sendOrderConfirmationEmail(orderId);
 }
 
 export const checkoutService = {
@@ -181,11 +224,11 @@ export const checkoutService = {
   },
 
   async placeOrder(userId: string, input: PlaceOrderInput) {
-    if (input.paymentMethod === 'stripe' && !env.isStripePublicReady) {
+    if (input.paymentMethod === 'meps' && !env.isMepsConfigured) {
       throw new AppError(
         400,
         ErrorCodes.VALIDATION_ERROR,
-        'الدفع بالبطاقة غير متاح حالياً. اختر الدفع عند الاستلام أو أضف مفاتيح Stripe في الإعدادات.',
+        'الدفع بالبطاقة غير متاح حالياً. اختر الدفع عند الاستلام أو أضف مفاتيح MEPS/PayTabs في الإعدادات.',
       );
     }
 
@@ -209,6 +252,7 @@ export const checkoutService = {
       input.loyaltyPointsToUse,
     );
 
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
     const orderNumber = orderService.generateOrderNumber();
 
     const order = await prisma.$transaction(async (tx) => {
@@ -302,7 +346,9 @@ export const checkoutService = {
           orderId: created.id,
           fromStatus: null,
           toStatus: 'pending',
-          note: input.couponCode ? `Order placed with coupon ${input.couponCode.toUpperCase()}` : 'Order placed',
+          note: input.couponCode
+            ? `Order placed with coupon ${input.couponCode.toUpperCase()}`
+            : 'Order placed',
           createdBy: userId,
         },
       });
@@ -322,7 +368,11 @@ export const checkoutService = {
 
       if (input.saveAddress) {
         const existing = await tx.address.findFirst({
-          where: { userId, governorate: input.shippingAddress.governorate, street: input.shippingAddress.street },
+          where: {
+            userId,
+            governorate: input.shippingAddress.governorate,
+            street: input.shippingAddress.street,
+          },
         });
         if (!existing) {
           await tx.address.create({
@@ -345,32 +395,42 @@ export const checkoutService = {
       });
     });
 
-    let clientSecret: string | undefined;
+    let redirectUrl: string | undefined;
 
-    if (input.paymentMethod === 'stripe') {
-      const stripe = requireStripe();
-      const { amount, currency } = jodTotalToStripeCharge(pricing.total);
+    if (input.paymentMethod === 'meps') {
       try {
-        const intent = await stripe.paymentIntents.create({
-          amount,
-          currency,
-          metadata: {
-            orderId: order.id,
-            orderNumber: order.orderNumber,
-            totalJod: String(pricing.total),
+        const payment = await createHostedPayment({
+          cartId: order.id,
+          amount: pricing.total,
+          description: `Order ${order.orderNumber}`,
+          customer: {
+            name: `${user.firstName} ${user.lastName}`.trim() || user.email,
+            email: user.email,
+            phone: input.shippingAddress.phone,
+            street: input.shippingAddress.street,
+            city: input.shippingAddress.city,
+            state: input.shippingAddress.governorate,
+            country: 'JO',
           },
-          automatic_payment_methods: { enabled: true },
         });
 
         await prisma.order.update({
           where: { id: order.id },
-          data: { stripePaymentIntentId: intent.id },
+          data: { paytabsTranRef: payment.tranRef },
         });
 
-        clientSecret = intent.client_secret ?? undefined;
+        redirectUrl = payment.redirectUrl;
       } catch (err) {
-        await revertPendingStripeOrder(order.id);
-        throw new AppError(502, ErrorCodes.VALIDATION_ERROR, stripeErrorMessage(err));
+        await revertPendingCardOrder(
+          order.id,
+          'MEPS/PayTabs payment page failed — order cancelled',
+        );
+        if (err instanceof AppError) throw err;
+        throw new AppError(
+          502,
+          ErrorCodes.VALIDATION_ERROR,
+          err instanceof Error ? err.message : 'فشل إنشاء صفحة الدفع',
+        );
       }
     }
 
@@ -380,7 +440,7 @@ export const checkoutService = {
       await loyaltyService.redeemForOrder(userId, pricing.loyaltyPointsUsed, order.id);
     }
 
-    if (input.paymentMethod !== 'stripe') {
+    if (input.paymentMethod !== 'meps') {
       await sendOrderConfirmationEmail(order.id);
     }
 
@@ -399,135 +459,74 @@ export const checkoutService = {
 
     return {
       order: orderService.mapOrderDetail(order),
-      clientSecret,
+      redirectUrl,
     };
   },
 
-  async confirmStripePayment(orderId: string, userId: string, paymentIntentId: string) {
+  async confirmMepsPayment(orderId: string, userId: string) {
     const order = await prisma.order.findUnique({ where: { id: orderId } });
     if (!order) throw new AppError(404, ErrorCodes.NOT_FOUND, 'Order not found');
     if (order.userId !== userId) throw new AppError(403, ErrorCodes.FORBIDDEN, 'Access denied');
-    if (order.paymentMethod !== 'stripe') {
-      throw new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Not a Stripe order');
-    }
-    if (order.stripePaymentIntentId !== paymentIntentId) {
-      throw new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Payment intent mismatch');
+    if (order.paymentMethod !== 'meps') {
+      throw new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Not a MEPS/PayTabs order');
     }
 
-    const stripe = requireStripe();
-    let intent;
-    try {
-      intent = await stripe.paymentIntents.retrieve(paymentIntentId);
-    } catch (err) {
-      throw new AppError(502, ErrorCodes.VALIDATION_ERROR, stripeErrorMessage(err));
+    if (order.paymentStatus === 'paid') {
+      return orderService.getById(orderId, userId);
     }
 
-    if (intent.status !== 'succeeded') {
+    const result = await queryTransaction(
+      order.paytabsTranRef
+        ? { tranRef: order.paytabsTranRef }
+        : { cartId: order.id },
+    );
+
+    if (!isPaytabsAuthorised(result)) {
       throw new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Payment not completed');
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.order.update({
-        where: { id: orderId },
-        data: { status: 'paid', paymentStatus: 'paid' },
-      });
-      await tx.orderStatusHistory.create({
-        data: {
-          orderId,
-          fromStatus: order.status,
-          toStatus: 'paid',
-          note: 'Stripe payment confirmed',
-          createdBy: 'system',
-        },
-      });
-      await tx.order.update({ where: { id: orderId }, data: { status: 'processing' } });
-      await tx.orderStatusHistory.create({
-        data: {
-          orderId,
-          fromStatus: 'paid',
-          toStatus: 'processing',
-          note: 'Order processing after payment',
-          createdBy: 'system',
-        },
-      });
-    });
-
-    await sendOrderConfirmationEmail(orderId);
+    const tranRef = pickPaytabsTranRef(result) ?? order.paytabsTranRef ?? undefined;
+    await markOrderPaid(orderId, order.status, 'MEPS/PayTabs payment confirmed', tranRef);
 
     return orderService.getById(orderId, userId);
   },
 
-  async handleStripeWebhook(payload: Buffer, signature: string) {
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-    if (!webhookSecret) {
-      throw new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Webhook secret not configured');
+  async handlePaytabsCallback(rawBody: Buffer, signature: string | undefined) {
+    if (!verifyCallbackSignature(rawBody, signature)) {
+      throw new AppError(401, ErrorCodes.UNAUTHORIZED, 'Invalid PayTabs callback signature');
     }
 
-    const stripe = requireStripe();
-    const event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
-
-    if (event.type === 'payment_intent.succeeded') {
-      const intent = event.data.object as {
-        id: string;
-        amount: number;
-        currency: string;
-        metadata?: { orderId?: string };
-      };
-      const orderId = intent.metadata?.orderId;
-      if (!orderId) return;
-
-      const order = await prisma.order.findUnique({ where: { id: orderId } });
-      if (!order || order.paymentStatus === 'paid') return;
-
-      // Bind webhook to the PaymentIntent we created for this order
-      if (order.stripePaymentIntentId && order.stripePaymentIntentId !== intent.id) {
-        console.warn(
-          `[stripe-webhook] Intent mismatch for order ${orderId}: expected ${order.stripePaymentIntentId}, got ${intent.id}`,
-        );
-        return;
-      }
-
-      // Amount is in the smallest currency unit (fils for JOD if supported, else cents)
-      // Soft check: if we stored total, compare when currency matches our charge currency
-      if (order.total != null && intent.amount != null) {
-        const expectedMinor = Math.round(Number(order.total) * 100);
-        if (Math.abs(expectedMinor - intent.amount) > 1) {
-          console.warn(
-            `[stripe-webhook] Amount mismatch for order ${orderId}: order=${expectedMinor} intent=${intent.amount}`,
-          );
-          return;
-        }
-      }
-
-      await prisma.$transaction(async (tx) => {
-        await tx.order.update({
-          where: { id: orderId },
-          data: {
-            status: 'processing',
-            paymentStatus: 'paid',
-            stripePaymentIntentId: order.stripePaymentIntentId ?? intent.id,
-          },
-        });
-        await tx.orderStatusHistory.createMany({
-          data: [
-            {
-              orderId,
-              fromStatus: order.status,
-              toStatus: 'paid',
-              note: 'Stripe webhook: payment succeeded',
-              createdBy: 'system',
-            },
-            {
-              orderId,
-              fromStatus: 'paid',
-              toStatus: 'processing',
-              note: 'Auto processing after payment',
-              createdBy: 'system',
-            },
-          ],
-        });
-      });
-      await sendOrderConfirmationEmail(orderId);
+    let payload: {
+      cart_id?: string;
+      tran_ref?: string;
+      payment_result?: { response_status?: string };
+    };
+    try {
+      payload = JSON.parse(rawBody.toString('utf8')) as typeof payload;
+    } catch {
+      throw new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Invalid callback body');
     }
+
+    if (payload.payment_result?.response_status !== 'A') {
+      return;
+    }
+
+    const order =
+      (payload.cart_id
+        ? await prisma.order.findUnique({ where: { id: payload.cart_id } })
+        : null) ??
+      (payload.tran_ref
+        ? await prisma.order.findFirst({ where: { paytabsTranRef: payload.tran_ref } })
+        : null);
+
+    if (!order || order.paymentStatus === 'paid') return;
+    if (order.paymentMethod !== 'meps') return;
+
+    await markOrderPaid(
+      order.id,
+      order.status,
+      'MEPS/PayTabs callback: payment succeeded',
+      payload.tran_ref,
+    );
   },
 };

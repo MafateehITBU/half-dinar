@@ -80,7 +80,7 @@ export const invoiceService = {
   <p><strong>التاريخ:</strong> ${date}</p>
   <p><strong>العميل:</strong> ${order.user.firstName} ${order.user.lastName} (${order.user.email})</p>
   <p><strong>عنوان التوصيل:</strong> ${formatAddress(addr)}</p>
-  <p><strong>طريقة الدفع:</strong> ${order.paymentMethod === 'cod' ? 'الدفع عند الاستلام' : 'بطاقة'}</p>
+  <p><strong>طريقة الدفع:</strong> ${order.paymentMethod === 'cod' ? 'الدفع عند الاستلام' : 'بطاقة (MEPS)'}</p>
   <table>
     <thead>
       <tr><th>المنتج</th><th>SKU</th><th>الكمية</th><th>السعر</th><th>المجموع</th></tr>

@@ -11,8 +11,6 @@
   "dependencies": {
     "@half-dinar/shared": "*",
     "@iconify/react": "^6.0.2",
-    "@stripe/react-stripe-js": "^3.1.0",
-    "@stripe/stripe-js": "^5.6.0",
     "dompurify": "^3.4.12",
     "framer-motion": "^11.15.0",
     "react": "^18.3.1",

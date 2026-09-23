@@ -22,16 +22,15 @@ export const checkoutQuoteSchema = z.object({
 export const placeOrderSchema = z.object({
   governorateCode: z.string().min(1),
   shippingAddress: shippingAddressSchema,
-  paymentMethod: z.enum(['cod', 'stripe']),
+  paymentMethod: z.enum(['cod', 'meps']),
   couponCode: z.string().optional(),
   loyaltyPointsToUse: z.coerce.number().int().min(0).optional(),
   notes: z.string().max(500).optional(),
   saveAddress: z.boolean().default(false),
 });
 
-export const stripeConfirmSchema = z.object({
+export const mepsConfirmSchema = z.object({
   orderId: z.string().uuid(),
-  paymentIntentId: z.string().min(1),
 });
 
 export const updateOrderStatusSchema = z.object({

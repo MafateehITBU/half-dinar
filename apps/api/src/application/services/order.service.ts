@@ -201,7 +201,7 @@ export const orderService = {
     return `AN${y}${m}${rand}`;
   },
 
-  getAutoTransition(paymentMethod: 'cod' | 'stripe', initialStatus: OrderStatus = 'pending'): OrderStatus | null {
+  getAutoTransition(paymentMethod: 'cod' | 'stripe' | 'meps', initialStatus: OrderStatus = 'pending'): OrderStatus | null {
     if (paymentMethod === 'cod' && initialStatus === 'pending') return 'processing';
     return null;
   },
