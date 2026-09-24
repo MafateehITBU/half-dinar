@@ -88,6 +88,43 @@ export async function showSuccess(message: string, title = 'تم') {
   }
 }
 
+/** Non-blocking toast — preferred after inline saves so the dashboard stays clickable. */
+export async function showToastSuccess(message: string) {
+  try {
+    await Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'success',
+      title: message,
+      showConfirmButton: false,
+      timer: 2200,
+      timerProgressBar: true,
+      heightAuto: false,
+      didClose: cleanupSwalBody,
+    });
+  } finally {
+    cleanupSwalBody();
+  }
+}
+
+export async function showToastError(message: string) {
+  try {
+    await Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'error',
+      title: message,
+      showConfirmButton: false,
+      timer: 3500,
+      timerProgressBar: true,
+      heightAuto: false,
+      didClose: cleanupSwalBody,
+    });
+  } finally {
+    cleanupSwalBody();
+  }
+}
+
 export async function showWarning(message: string, title = 'تنبيه') {
   try {
     await Swal.fire({

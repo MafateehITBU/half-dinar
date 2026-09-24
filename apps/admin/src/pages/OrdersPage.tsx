@@ -1,5 +1,6 @@
-import { FormEvent, useCallback, useState } from 'react';
+import { FormEvent, useCallback, useMemo, useState } from 'react';
 import type { OrderDetail, OrderSummary } from '@half-dinar/shared';
+import { formatMoney } from '@half-dinar/shared';
 import { AdminLayout } from '../components/AdminLayout';
 import { PageHeader } from '../components/ui/PageHeader';
 import { DataTable, type Column } from '../components/ui/DataTable';
@@ -8,6 +9,7 @@ import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { usePaginatedList } from '../hooks/usePaginatedList';
 import { adminApi, openAdminOrderInvoice } from '../lib/api';
+import { showToastError, showToastSuccess } from '../lib/confirm';
 
 const STATUSES = ['pending', 'processing', 'paid', 'shipped', 'delivered', 'completed', 'cancelled', 'refunded'] as const;
 
@@ -20,6 +22,18 @@ const STATUS_AR: Record<string, string> = {
   completed: 'مكتمل',
   cancelled: 'ملغي',
   refunded: 'مسترد',
+};
+
+/** Allowed next statuses from current (must match API VALID_TRANSITIONS). */
+const NEXT_STATUSES: Record<string, string[]> = {
+  pending: ['processing', 'paid', 'cancelled'],
+  processing: ['paid', 'shipped', 'cancelled'],
+  paid: ['processing', 'shipped', 'cancelled', 'refunded'],
+  shipped: ['delivered', 'cancelled'],
+  delivered: ['completed', 'refunded'],
+  completed: ['refunded'],
+  cancelled: [],
+  refunded: [],
 };
 
 const STATUS_VARIANT: Record<string, 'default' | 'warning' | 'success' | 'primary' | 'danger'> = {
@@ -159,19 +173,32 @@ export function OrdersPage() {
 
   const updateStatus = async () => {
     if (!selected) return;
+    if (newStatus === selected.status) {
+      await showToastSuccess('الحالة لم تتغير');
+      return;
+    }
     setSaving(true);
     try {
       await adminApi.updateOrderStatus(selected.id, newStatus, note);
       setNote('');
-      reload();
       const r = await adminApi.getOrder(selected.id);
       const order = r.data as OrderDetail;
       setSelected(order);
       setNewStatus(order.status);
+      await reload();
+      await showToastSuccess(`تم تحديث الحالة إلى «${STATUS_AR[order.status] ?? order.status}»`);
+    } catch (err) {
+      await showToastError(err instanceof Error ? err.message : 'فشل تحديث الحالة');
     } finally {
       setSaving(false);
     }
   };
+
+  const allowedStatuses = useMemo(() => {
+    if (!selected) return [...STATUSES];
+    const next = NEXT_STATUSES[selected.status] ?? [];
+    return [selected.status, ...next.filter((s) => s !== selected.status)];
+  }, [selected]);
 
   const columns: Column<OrderRow>[] = [
     {
@@ -201,7 +228,7 @@ export function OrdersPage() {
     {
       key: 'total',
       header: 'المبلغ',
-      render: (o) => <span className="font-semibold tabular-nums">{o.total.toFixed(2)} د.أ</span>,
+      render: (o) => <span className="font-semibold tabular-nums">{formatMoney(o.total)} د.أ</span>,
     },
     {
       key: 'payment',
@@ -427,29 +454,31 @@ export function OrdersPage() {
                         {i.name}
                         <span className="text-slate-500"> × {i.quantity}</span>
                       </span>
-                      <span className="tabular-nums text-slate-700">{i.total.toFixed(2)} د.أ</span>
+                      <span className="tabular-nums text-slate-700">{formatMoney(i.total)} د.أ</span>
                     </li>
                   ))}
                 </ul>
                 <div className="mt-3 space-y-1 text-sm">
                   <div className="flex justify-between text-slate-600">
                     <span>المجموع الفرعي</span>
-                    <span className="tabular-nums">{selected.subtotal.toFixed(2)} د.أ</span>
+                    <span className="tabular-nums">{formatMoney(selected.subtotal)} د.أ</span>
                   </div>
                   <div className="flex justify-between text-slate-600">
                     <span>التوصيل</span>
                     <span className="tabular-nums">
-                      {selected.shippingAmount === 0 ? 'مجاني' : `${selected.shippingAmount.toFixed(2)} د.أ`}
+                      {Number(selected.shippingAmount) === 0
+                        ? 'مجاني'
+                        : `${formatMoney(selected.shippingAmount)} د.أ`}
                     </span>
                   </div>
-                  {selected.discountAmount > 0 && (
+                  {Number(selected.discountAmount) > 0 && (
                     <div className="flex justify-between text-green-700">
                       <span>الخصم</span>
-                      <span className="tabular-nums">-{selected.discountAmount.toFixed(2)} د.أ</span>
+                      <span className="tabular-nums">-{formatMoney(selected.discountAmount)} د.أ</span>
                     </div>
                   )}
                   <p className="pt-1 text-xl font-bold text-primary-700 tabular-nums">
-                    {selected.total.toFixed(2)} د.أ
+                    {formatMoney(selected.total)} د.أ
                   </p>
                 </div>
               </div>
@@ -491,14 +520,18 @@ export function OrdersPage() {
 
               <div className="rounded-xl border border-slate-100 p-4">
                 <h4 className="font-medium text-slate-700">تحديث حالة الطلب</h4>
+                <p className="mt-1 text-xs text-slate-500">
+                  تظهر فقط الحالات المسموح الانتقال إليها من الحالة الحالية.
+                </p>
                 <select
                   value={newStatus}
                   onChange={(e) => setNewStatus(e.target.value)}
                   className="select-field mt-2"
                 >
-                  {STATUSES.map((s) => (
+                  {allowedStatuses.map((s) => (
                     <option key={s} value={s}>
                       {STATUS_AR[s] ?? s}
+                      {s === selected.status ? ' (الحالية)' : ''}
                     </option>
                   ))}
                 </select>
@@ -511,8 +544,8 @@ export function OrdersPage() {
                 <div className="mt-3 flex gap-2">
                   <button
                     type="button"
-                    onClick={updateStatus}
-                    disabled={saving}
+                    onClick={() => void updateStatus()}
+                    disabled={saving || allowedStatuses.length <= 1}
                     className="btn-primary flex-1 disabled:opacity-50"
                   >
                     {saving ? 'جاري الحفظ...' : 'حفظ الحالة'}

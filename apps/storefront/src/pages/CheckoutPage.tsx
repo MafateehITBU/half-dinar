@@ -2,7 +2,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Icon } from '@iconify/react';
-import { JORDAN_GOVERNORATES, shippingAddressSchema } from '@half-dinar/shared';
+import { JORDAN_GOVERNORATES, shippingAddressSchema, formatMoney, toNum } from '@half-dinar/shared';
 import type { CheckoutQuote, OrderDetail } from '@half-dinar/shared';
 import { Layout } from '../components/Layout';
 import { ProductImage } from '../components/ProductImage';
@@ -14,6 +14,19 @@ import { formatZodErrors } from '../lib/errors';
 import { showError, showSuccess } from '../lib/toast';
 
 const STEPS = ['العنوان', 'الشحن', 'الدفع'];
+
+function normalizeQuote(raw: CheckoutQuote): CheckoutQuote {
+  return {
+    ...raw,
+    subtotal: toNum(raw.subtotal),
+    shippingAmount: toNum(raw.shippingAmount),
+    discountAmount: toNum(raw.discountAmount),
+    loyaltyDiscount: toNum(raw.loyaltyDiscount),
+    loyaltyPointsUsed: toNum(raw.loyaltyPointsUsed),
+    loyaltyBalance: toNum(raw.loyaltyBalance),
+    total: toNum(raw.total),
+  };
+}
 
 export function CheckoutPage() {
   const { cart } = useCart();
@@ -77,18 +90,33 @@ export function CheckoutPage() {
       .catch(() => {});
   }, [loggedIn]);
 
-  const fetchQuote = () => {
+  const fetchQuote = (opts?: { announceCoupon?: boolean }) => {
     setQuoteLoading(true);
     setQuoteError('');
-    api
-      .getCheckoutQuote(governorateCode, couponCode || undefined, loyaltyPoints || undefined)
+    const code = couponCode.trim() || undefined;
+    return api
+      .getCheckoutQuote(governorateCode, code, loyaltyPoints || undefined)
       .then((r) => {
-        setQuote(r.data as CheckoutQuote);
+        const q = normalizeQuote(r.data as CheckoutQuote);
+        setQuote(q);
         setQuoteError('');
+        if (opts?.announceCoupon) {
+          if (code && q.discountAmount > 0) {
+            showSuccess(`تم تطبيق الخصم: −${formatMoney(q.discountAmount)} د.أ`);
+          } else if (code && q.shippingAmount === 0 && q.freeShippingApplied) {
+            showSuccess('تم تطبيق شحن مجاني');
+          } else if (code) {
+            showError('الكوبون صالح لكن لا يوجد خصم على هذا الطلب');
+          }
+        }
+        return q;
       })
       .catch((err) => {
         setQuote(null);
-        setQuoteError(err instanceof Error ? err.message : 'تعذر حساب الشحن');
+        const msg = err instanceof Error ? err.message : 'تعذر حساب الشحن';
+        setQuoteError(msg);
+        if (opts?.announceCoupon) showError(msg);
+        throw err;
       })
       .finally(() => setQuoteLoading(false));
   };
@@ -144,7 +172,7 @@ export function CheckoutPage() {
         governorateCode,
         shippingAddress: address,
         paymentMethod,
-        couponCode: couponCode || undefined,
+        couponCode: couponCode.trim() || undefined,
         loyaltyPointsToUse: loyaltyPoints || undefined,
         notes: notes || undefined,
         saveAddress: selectedAddressId === 'new' ? saveAddress : false,
@@ -319,28 +347,31 @@ export function CheckoutPage() {
                 ) : quoteError ? (
                   <div className="space-y-2 rounded-xl bg-red-50 p-4 text-sm text-red-700">
                     <p>{quoteError}</p>
-                    <button type="button" className="btn-secondary text-xs" onClick={fetchQuote}>
+                    <button type="button" className="btn-secondary text-xs" onClick={() => void fetchQuote().catch(() => {})}>
                       إعادة المحاولة
                     </button>
                   </div>
                 ) : quote ? (
                   <div className="space-y-2 rounded-xl bg-brand-cream/60 p-4 text-sm">
-                    <div className="flex justify-between"><span>المجموع الفرعي</span><span>{quote.subtotal.toFixed(2)} د.أ</span></div>
+                    <div className="flex justify-between"><span>المجموع الفرعي</span><span>{formatMoney(quote.subtotal)} د.أ</span></div>
                     <div className="flex justify-between">
                       <span>الشحن ({quote.shippingZone.nameAr})</span>
                       <span>
                         {quote.shippingAmount === 0 || quote.freeShippingApplied
                           ? 'مجاني'
-                          : `${quote.shippingAmount.toFixed(2)} د.أ`}
+                          : `${formatMoney(quote.shippingAmount)} د.أ`}
                       </span>
                     </div>
                     {quote.discountAmount > 0 && (
-                      <div className="flex justify-between text-green-700"><span>خصم</span><span>-{quote.discountAmount.toFixed(2)} د.أ</span></div>
+                      <div className="flex justify-between text-green-700">
+                        <span>خصم{quote.couponCode ? ` (${quote.couponCode})` : ''}</span>
+                        <span>-{formatMoney(quote.discountAmount)} د.أ</span>
+                      </div>
                     )}
                     {(quote.loyaltyDiscount ?? 0) > 0 && (
-                      <div className="flex justify-between text-green-700"><span>ولاء</span><span>-{(quote.loyaltyDiscount ?? 0).toFixed(2)} د.أ</span></div>
+                      <div className="flex justify-between text-green-700"><span>ولاء</span><span>-{formatMoney(quote.loyaltyDiscount)} د.أ</span></div>
                     )}
-                    <div className="flex justify-between border-t pt-2 font-bold"><span>الإجمالي</span><span>{quote.total.toFixed(2)} د.أ</span></div>
+                    <div className="flex justify-between border-t pt-2 font-bold"><span>الإجمالي</span><span>{formatMoney(quote.total)} د.أ</span></div>
                   </div>
                 ) : (
                   <p className="text-brand-muted">اختر المحافظة ثم انتظر حساب الشحن</p>
@@ -348,8 +379,21 @@ export function CheckoutPage() {
                 <div>
                   <label className="label-field">كود الخصم (اختياري)</label>
                   <div className="flex gap-2">
-                    <input className="input-field" value={couponCode} onChange={(e) => setCouponCode(e.target.value)} />
-                    <button type="button" className="btn-secondary shrink-0" onClick={fetchQuote}>تطبيق</button>
+                    <input
+                      className="input-field uppercase"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                      placeholder="SAVE10"
+                      dir="ltr"
+                    />
+                    <button
+                      type="button"
+                      className="btn-secondary shrink-0"
+                      disabled={quoteLoading}
+                      onClick={() => void fetchQuote({ announceCoupon: true })}
+                    >
+                      تطبيق
+                    </button>
                   </div>
                 </div>
                 {(quote?.loyaltyBalance ?? 0) > 0 && (
@@ -362,7 +406,7 @@ export function CheckoutPage() {
                       className="input-field"
                       value={loyaltyPoints}
                       onChange={(e) => setLoyaltyPoints(Number(e.target.value) || 0)}
-                      onBlur={fetchQuote}
+                      onBlur={() => void fetchQuote().catch(() => {})}
                     />
                   </div>
                 )}
@@ -449,13 +493,49 @@ export function CheckoutPage() {
                     <p className="line-clamp-2 font-medium">{item.nameAr}</p>
                     <p className="text-brand-muted">× {item.quantity}</p>
                   </div>
-                  <span className="shrink-0 text-sm font-bold">{item.lineTotal.toFixed(2)}</span>
+                  <span className="shrink-0 text-sm font-bold">{formatMoney(item.lineTotal)}</span>
                 </li>
               ))}
             </ul>
-            <div className="mt-4 border-t pt-4 flex justify-between font-bold">
-              <span>المجموع الفرعي</span>
-              <span>{cart.subtotal.toFixed(2)} د.أ</span>
+            <div className="mt-4 space-y-2 border-t pt-4 text-sm">
+              <div className="flex justify-between">
+                <span className="text-brand-muted">المجموع الفرعي</span>
+                <span className="font-medium">{formatMoney(quote?.subtotal ?? cart.subtotal)} د.أ</span>
+              </div>
+              {quote && (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-brand-muted">الشحن</span>
+                    <span className="font-medium">
+                      {quote.shippingAmount === 0 || quote.freeShippingApplied
+                        ? 'مجاني'
+                        : `${formatMoney(quote.shippingAmount)} د.أ`}
+                    </span>
+                  </div>
+                  {quote.discountAmount > 0 && (
+                    <div className="flex justify-between text-green-700">
+                      <span>خصم{quote.couponCode ? ` (${quote.couponCode})` : ''}</span>
+                      <span>−{formatMoney(quote.discountAmount)} د.أ</span>
+                    </div>
+                  )}
+                  {(quote.loyaltyDiscount ?? 0) > 0 && (
+                    <div className="flex justify-between text-green-700">
+                      <span>ولاء</span>
+                      <span>−{formatMoney(quote.loyaltyDiscount)} د.أ</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t pt-2 text-base font-bold">
+                    <span>الإجمالي</span>
+                    <span className="text-brand-green">{formatMoney(quote.total)} د.أ</span>
+                  </div>
+                </>
+              )}
+              {!quote && (
+                <div className="flex justify-between font-bold">
+                  <span>قبل الشحن والخصم</span>
+                  <span>{formatMoney(cart.subtotal)} د.أ</span>
+                </div>
+              )}
             </div>
           </aside>
         </div>

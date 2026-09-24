@@ -242,12 +242,12 @@ export const checkoutService = {
     const account = await loyaltyService.getAccount(userId);
 
     return {
-      subtotal: pricing.subtotal,
-      shippingAmount: pricing.shippingAmount,
-      discountAmount: pricing.discountAmount,
-      loyaltyDiscount: pricing.loyaltyDiscount,
-      loyaltyPointsUsed: pricing.loyaltyPointsUsed,
-      total: pricing.total,
+      subtotal: Number(pricing.subtotal),
+      shippingAmount: Number(pricing.shippingAmount),
+      discountAmount: Number(pricing.discountAmount),
+      loyaltyDiscount: Number(pricing.loyaltyDiscount),
+      loyaltyPointsUsed: Number(pricing.loyaltyPointsUsed),
+      total: Number(pricing.total),
       freeShippingApplied: freeShippingApplied || pricing.shippingAmount === 0,
       couponCode: couponCode?.toUpperCase() ?? null,
       loyaltyBalance: account.pointsBalance,
@@ -452,7 +452,7 @@ export const checkoutService = {
       try {
         const payment = await createHostedPayment({
           cartId: order.id,
-          amount: pricing.total,
+          amount: Math.round(Number(pricing.total) * 1000) / 1000,
           description: `Order ${order.orderNumber}`,
           customer: {
             name: `${user.firstName} ${user.lastName}`.trim() || user.email,

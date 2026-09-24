@@ -4,6 +4,7 @@ import { AdminLayout } from '../components/AdminLayout';
 import { PageHeader } from '../components/ui/PageHeader';
 import { DataTable, type Column } from '../components/ui/DataTable';
 import { adminApi } from '../lib/api';
+import { showToastError, showToastSuccess } from '../lib/confirm';
 
 interface ShippingZoneRow {
   id: string;
@@ -54,9 +55,15 @@ export function ShippingPage() {
           ? `تم جعل شحن ${zone.nameAr} مجاناً`
           : `تم حفظ شحن ${zone.nameAr}`,
       );
+      await showToastSuccess(
+        flatRate === 0
+          ? `تم جعل شحن ${zone.nameAr} مجاناً`
+          : `تم حفظ شحن ${zone.nameAr}`,
+      );
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'فشل الحفظ');
+      await showToastError(e instanceof Error ? e.message : 'فشل الحفظ');
     } finally {
       setSavingId(null);
     }

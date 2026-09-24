@@ -8,7 +8,7 @@ import { TableActions } from '../components/ui/TableActions';
 import { Badge } from '../components/ui/Badge';
 import { useTableSelection } from '../hooks/useTableSelection';
 import { reportBulkResult } from '../lib/bulk';
-import { confirmDelete, showSuccess, showWarning } from '../lib/confirm';
+import { confirmDelete, showToastSuccess, showWarning } from '../lib/confirm';
 import { ProductMultiPicker } from '../components/ProductMultiPicker';
 import type { PickerProduct } from '../components/ProductPicker';
 import { adminApi } from '../lib/api';
@@ -142,7 +142,7 @@ export function PromotionsPage() {
       isActive: true,
     });
     setCouponForm({ code: '', type: 'percent', value: '10', minOrderValue: '5' });
-    await showSuccess('تم إنشاء الكوبون');
+    await showToastSuccess('تم إنشاء الكوبون');
     load();
   };
 
@@ -177,7 +177,7 @@ export function PromotionsPage() {
       });
       setCampForm(emptyCampForm());
       setCampProductIds([]);
-      await showSuccess('تم إنشاء العرض');
+      await showToastSuccess('تم إنشاء العرض');
       load();
     } finally {
       setCampSaving(false);

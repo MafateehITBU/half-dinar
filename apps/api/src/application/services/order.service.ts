@@ -64,6 +64,17 @@ const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   refunded: [],
 };
 
+const STATUS_LABEL_AR: Record<OrderStatus, string> = {
+  pending: 'قيد الانتظار',
+  processing: 'قيد المعالجة',
+  paid: 'مدفوع',
+  shipped: 'تم الشحن',
+  delivered: 'تم التسليم',
+  completed: 'مكتمل',
+  cancelled: 'ملغي',
+  refunded: 'مسترد',
+};
+
 const AUTO_AFTER: Partial<Record<OrderStatus, OrderStatus>> = {
   pending: 'processing', // COD auto
 };
@@ -181,9 +192,19 @@ export const orderService = {
     if (!order) throw new AppError(404, ErrorCodes.NOT_FOUND, 'Order not found');
 
     const current = order.status as OrderStatus;
+    if (current === toStatus) {
+      return this.getById(orderId);
+    }
     const allowed = VALID_TRANSITIONS[current] ?? [];
     if (!allowed.includes(toStatus)) {
-      throw new AppError(400, ErrorCodes.VALIDATION_ERROR, `Cannot transition from ${current} to ${toStatus}`);
+      const fromAr = STATUS_LABEL_AR[current] ?? current;
+      const toAr = STATUS_LABEL_AR[toStatus] ?? toStatus;
+      const next = allowed.map((s) => STATUS_LABEL_AR[s] ?? s).join('، ') || 'لا توجد';
+      throw new AppError(
+        400,
+        ErrorCodes.VALIDATION_ERROR,
+        `لا يمكن تغيير الحالة من «${fromAr}» إلى «${toAr}». الحالات المتاحة: ${next}`,
+      );
     }
 
     await prisma.$transaction(async (tx) => {
