@@ -84,6 +84,65 @@ for path in sorted(root.glob('*')):
         print(f'patched {path}')
 PY
 
+echo "==> Ensure PayTabs return POST is proxied (avoid SPA 405)"
+python3 - <<'PY'
+from pathlib import Path
+import re
+
+snippet_prod = '''
+    # PayTabs POSTs to return URL; SPA would 405. POST → API bridge; GET → SPA.
+    location = /checkout/meps/return {
+        error_page 418 = @paytabs_return_post;
+        if ($request_method = POST) {
+            return 418;
+        }
+        try_files /index.html =404;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+
+    location @paytabs_return_post {
+        proxy_pass http://abualnus_api/api/v1/checkout/meps/return;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+    }
+'''
+
+snippet_staging = snippet_prod.replace(
+    'http://abualnus_api/api/v1/checkout/meps/return',
+    'http://127.0.0.1:4001/api/v1/checkout/meps/return',
+)
+
+roots = [Path('/etc/nginx/sites-enabled'), Path('/etc/nginx/conf.d')]
+for root in roots:
+    if not root.is_dir():
+        continue
+    for path in sorted(root.iterdir()):
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding='utf-8', errors='ignore')
+        if 'checkout/meps/return' in text:
+            print(f'skip existing {path}')
+            continue
+        if not any(h in text for h in ('mawjood.online', 'abualnus.com', 'staging.mawjood')):
+            continue
+        name = path.name.lower()
+        if any(x in name for x in ('dashboard', 'api.', 'admin')):
+            continue
+        if 'location /api/' not in text:
+            continue
+        insert = snippet_staging if ('staging' in text or '4001' in text) else snippet_prod
+        m = re.search(r'location /api/\s*\{[\s\S]*?\n\s*\}', text)
+        if not m:
+            print(f'no api block {path}')
+            continue
+        path.write_text(text[: m.end()] + '\n' + insert + text[m.end() :], encoding='utf-8')
+        print(f'patched paytabs return {path}')
+PY
+
 echo "==> Nginx reload"
 nginx -t && systemctl reload nginx
 
