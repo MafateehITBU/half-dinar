@@ -24,18 +24,22 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          SMTP_FROM: ${{ secrets.SMTP_FROM }}
         run: |
           set -euo pipefail
           test -n "$SMTP_USER"
           test -n "$SMTP_PASS"
+          # Encode secrets so SSH remote argv cannot break on spaces / < >
+          B64_USER=$(printf '%s' "$SMTP_USER" | base64 -w0)
+          B64_PASS=$(printf '%s' "$SMTP_PASS" | base64 -w0)
           ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
             "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            SMTP_USER="$SMTP_USER" \
-            SMTP_PASS="$SMTP_PASS" \
-            SMTP_FROM="${SMTP_FROM:-}" \
+            B64_USER="$B64_USER" \
+            B64_PASS="$B64_PASS" \
             'bash -s' <<'EOF'
           set -euo pipefail
+          SMTP_USER=$(printf '%s' "$B64_USER" | base64 -d)
+          SMTP_PASS=$(printf '%s' "$B64_PASS" | base64 -d)
+          export SMTP_USER SMTP_PASS
           python3 - <<'PY'
           import os
           from pathlib import Path
@@ -61,7 +65,7 @@ jobs:
 
           user = os.environ["SMTP_USER"]
           password = os.environ["SMTP_PASS"]
-          frm = os.environ.get("SMTP_FROM") or f"MawJooD <{user}>"
+          frm = f"MawJooD <{user}>"
           common = {
               "SMTP_HOST": "smtp.gmail.com",
               "SMTP_PORT": "587",
