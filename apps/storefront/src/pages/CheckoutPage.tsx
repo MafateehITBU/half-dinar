@@ -19,6 +19,8 @@ export function CheckoutPage() {
   const { cart } = useCart();
   const [step, setStep] = useState(0);
   const [quote, setQuote] = useState<CheckoutQuote | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteError, setQuoteError] = useState('');
   const [governorateCode, setGovernorateCode] = useState('AM');
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'meps'>('cod');
   const [address, setAddress] = useState({
@@ -47,9 +49,19 @@ export function CheckoutPage() {
   }, []);
 
   const fetchQuote = () => {
+    setQuoteLoading(true);
+    setQuoteError('');
     api
       .getCheckoutQuote(governorateCode, couponCode || undefined, loyaltyPoints || undefined)
-      .then((r) => setQuote(r.data as CheckoutQuote));
+      .then((r) => {
+        setQuote(r.data as CheckoutQuote);
+        setQuoteError('');
+      })
+      .catch((err) => {
+        setQuote(null);
+        setQuoteError(err instanceof Error ? err.message : 'تعذر حساب الشحن');
+      })
+      .finally(() => setQuoteLoading(false));
   };
 
   useEffect(() => {
@@ -203,10 +215,26 @@ export function CheckoutPage() {
             {step === 1 && (
               <div className="space-y-4">
                 <h2 className="text-lg font-bold">الشحن والكوبون</h2>
-                {quote ? (
+                {quoteLoading ? (
+                  <p className="text-brand-muted">جاري حساب الشحن...</p>
+                ) : quoteError ? (
+                  <div className="space-y-2 rounded-xl bg-red-50 p-4 text-sm text-red-700">
+                    <p>{quoteError}</p>
+                    <button type="button" className="btn-secondary text-xs" onClick={fetchQuote}>
+                      إعادة المحاولة
+                    </button>
+                  </div>
+                ) : quote ? (
                   <div className="space-y-2 rounded-xl bg-brand-cream/60 p-4 text-sm">
                     <div className="flex justify-between"><span>المجموع الفرعي</span><span>{quote.subtotal.toFixed(2)} د.أ</span></div>
-                    <div className="flex justify-between"><span>الشحن ({quote.shippingZone.nameAr})</span><span>{quote.shippingAmount.toFixed(2)} د.أ</span></div>
+                    <div className="flex justify-between">
+                      <span>الشحن ({quote.shippingZone.nameAr})</span>
+                      <span>
+                        {quote.shippingAmount === 0 || quote.freeShippingApplied
+                          ? 'مجاني'
+                          : `${quote.shippingAmount.toFixed(2)} د.أ`}
+                      </span>
+                    </div>
                     {quote.discountAmount > 0 && (
                       <div className="flex justify-between text-green-700"><span>خصم</span><span>-{quote.discountAmount.toFixed(2)} د.أ</span></div>
                     )}
@@ -216,7 +244,7 @@ export function CheckoutPage() {
                     <div className="flex justify-between border-t pt-2 font-bold"><span>الإجمالي</span><span>{quote.total.toFixed(2)} د.أ</span></div>
                   </div>
                 ) : (
-                  <p className="text-brand-muted">جاري حساب الشحن...</p>
+                  <p className="text-brand-muted">اختر المحافظة ثم انتظر حساب الشحن</p>
                 )}
                 <div>
                   <label className="label-field">كود الخصم (اختياري)</label>

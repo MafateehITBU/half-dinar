@@ -44,10 +44,16 @@ export function ShippingPage() {
     setOk('');
     setSavingId(zone.id);
     try {
-      const flatRate = Number(draftRates[zone.id]);
-      if (Number.isNaN(flatRate) || flatRate < 0) throw new Error('سعر غير صالح');
+      const raw = (draftRates[zone.id] ?? '').trim();
+      if (raw === '') throw new Error('أدخل سعر الشحن (0 = مجاني لهذه المحافظة)');
+      const flatRate = Number(raw);
+      if (!Number.isFinite(flatRate) || flatRate < 0) throw new Error('سعر غير صالح');
       await adminApi.updateShippingZone(zone.id, { flatRate });
-      setOk(`تم حفظ شحن ${zone.nameAr}`);
+      setOk(
+        flatRate === 0
+          ? `تم جعل شحن ${zone.nameAr} مجاناً`
+          : `تم حفظ شحن ${zone.nameAr}`,
+      );
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'فشل الحفظ');
@@ -159,7 +165,7 @@ export function ShippingPage() {
     <AdminLayout>
       <PageHeader
         title="أسعار الشحن"
-        description="تحكم بأسعار التوصيل لكل محافظة وحد الشحن المجاني"
+        description="سعر 0 = شحن مجاني للمحافظة. زر إيقاف يعطّل المحافظة بالكامل (العميل لن يستطيع اختيارها عند الدفع)."
       />
 
       {error && (

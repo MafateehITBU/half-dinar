@@ -24,6 +24,15 @@ export async function uniqueSlug(
   return slug;
 }
 
-export function decimalToNumber(value: { toNumber(): number } | number): number {
-  return typeof value === 'number' ? value : value.toNumber();
+export function decimalToNumber(
+  value: { toNumber(): number } | number | string | null | undefined,
+): number {
+  if (value == null) return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'string') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  }
+  if (typeof value.toNumber === 'function') return value.toNumber();
+  return Number(value) || 0;
 }
