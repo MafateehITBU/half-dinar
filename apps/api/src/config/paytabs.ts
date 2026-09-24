@@ -115,6 +115,40 @@ export async function createHostedPayment(input: {
   return { tranRef: data.tran_ref, redirectUrl: data.redirect_url };
 }
 
+/** Refund a successful Sale (Visa/MEPS) back to the customer's card. */
+export async function refundTransaction(input: {
+  originalTranRef: string;
+  cartId: string;
+  amount: number;
+  description: string;
+}): Promise<{ tranRef: string; authorised: boolean; message?: string }> {
+  const data = await paytabsFetch('/payment/request', {
+    profile_id: Number(env.paytabsProfileId) || env.paytabsProfileId,
+    tran_type: 'refund',
+    tran_class: 'ecom',
+    cart_id: `${input.cartId}-refund`,
+    cart_currency: 'JOD',
+    cart_amount: Math.round(input.amount * 1000) / 1000,
+    cart_description: input.description.slice(0, 120),
+    tran_ref: input.originalTranRef,
+  });
+
+  const authorised = data.payment_result?.response_status === 'A';
+  if (!authorised) {
+    const msg =
+      data.payment_result?.response_message ||
+      data.message ||
+      'PayTabs رفض عملية الاسترداد';
+    throw new AppError(502, ErrorCodes.VALIDATION_ERROR, msg);
+  }
+
+  return {
+    tranRef: data.tran_ref ?? input.originalTranRef,
+    authorised: true,
+    message: data.payment_result?.response_message,
+  };
+}
+
 export async function queryTransaction(opts: {
   tranRef?: string;
   cartId?: string;

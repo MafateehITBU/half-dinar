@@ -14,6 +14,7 @@
 | Forgot / reset password | 🟡 Link flow live | Forgot page + login link deployed; OTP codes still planned |
 | Order confirmation email | ✅ Done | Needs working SMTP |
 | Order status update emails | ✅ Live | Designed RTL template on every admin status change (+ after MEPS paid) |
+| Refund requests | ✅ Live | Customer form on order detail → Admin **الاسترداد**; Visa refund via PayTabs on approve |
 | Saved addresses | ✅ Live | Account «العناوين» + checkout picker + CRUD API |
 | Google Sign-In (Gmail) | ✅ Live | GIS on login; `POST /auth/google`; env on VPS |
 | Easier signup | ✅ Live | Full name; softer password (8+ letter+number); Google CTA |
