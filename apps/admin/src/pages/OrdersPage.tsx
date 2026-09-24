@@ -21,6 +21,26 @@ const STATUS_VARIANT: Record<string, 'default' | 'warning' | 'success' | 'primar
   refunded: 'danger',
 };
 
+const PAYMENT_LABEL: Record<string, string> = {
+  paid: 'مدفوع',
+  pending: 'غير مدفوع',
+  failed: 'فشل الدفع',
+  refunded: 'مسترد',
+};
+
+const PAYMENT_METHOD_LABEL: Record<string, string> = {
+  cod: 'عند الاستلام',
+  meps: 'بطاقة / MEPS',
+  stripe: 'Stripe',
+};
+
+const PAYMENT_VARIANT: Record<string, 'default' | 'warning' | 'success' | 'danger'> = {
+  paid: 'success',
+  pending: 'warning',
+  failed: 'danger',
+  refunded: 'danger',
+};
+
 type OrderRow = OrderSummary & {
   customer?: { email: string; firstName: string; lastName: string };
 };
@@ -62,6 +82,20 @@ export function OrdersPage() {
     { key: 'num', header: 'الطلب', render: (o) => <span className="font-medium">{o.orderNumber}</span> },
     { key: 'customer', header: 'العميل', render: (o) => o.customer?.email ?? '—' },
     { key: 'total', header: 'المبلغ', render: (o) => `${o.total.toFixed(2)} د.أ` },
+    {
+      key: 'payment',
+      header: 'الدفع',
+      render: (o) => (
+        <div className="space-y-1">
+          <Badge variant={PAYMENT_VARIANT[o.paymentStatus] ?? 'default'}>
+            {PAYMENT_LABEL[o.paymentStatus] ?? o.paymentStatus}
+          </Badge>
+          <p className="text-[11px] text-slate-500">
+            {PAYMENT_METHOD_LABEL[o.paymentMethod] ?? o.paymentMethod}
+          </p>
+        </div>
+      ),
+    },
     {
       key: 'status',
       header: 'الحالة',
@@ -125,6 +159,14 @@ export function OrdersPage() {
               ))}
             </ul>
             <p className="mt-4 text-xl font-bold text-primary-700">{selected.total.toFixed(2)} د.أ</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+              <Badge variant={PAYMENT_VARIANT[selected.paymentStatus] ?? 'default'}>
+                {PAYMENT_LABEL[selected.paymentStatus] ?? selected.paymentStatus}
+              </Badge>
+              <span className="text-slate-500">
+                {PAYMENT_METHOD_LABEL[selected.paymentMethod] ?? selected.paymentMethod}
+              </span>
+            </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
               <button type="button" onClick={() => openAdminOrderInvoice(selected.id, 'html')} className="btn-secondary text-xs">

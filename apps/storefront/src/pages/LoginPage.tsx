@@ -64,7 +64,13 @@ export function LoginPage() {
         showSuccess('تم إنشاء الحساب! تحقق من بريدك لتفعيل الحساب.');
       }
       const redirect = searchParams.get('redirect');
-      navigate(redirect === 'checkout' ? '/checkout' : '/');
+      if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
+        navigate(redirect);
+      } else if (redirect === 'checkout') {
+        navigate('/checkout');
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'فشل تسجيل الدخول';
       setError(msg);

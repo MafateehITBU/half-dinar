@@ -68,7 +68,9 @@ export function getPaytabsCallbackUrl(): string | undefined {
 }
 
 export function getPaytabsReturnUrl(): string {
-  return `${env.storefrontUrl.replace(/\/$/, '')}/checkout/meps/return`;
+  // Must hit the API bridge (accepts PayTabs POST). SPA paths reject POST with 405.
+  // Prefer storefront origin + /api proxy so the browser stays on the shop domain.
+  return `${env.storefrontUrl.replace(/\/$/, '')}/api/v1/checkout/meps/return`;
 }
 
 export async function createHostedPayment(input: {

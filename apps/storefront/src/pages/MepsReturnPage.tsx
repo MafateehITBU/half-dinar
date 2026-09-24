@@ -13,9 +13,13 @@ export function MepsReturnPage() {
   const [orderId, setOrderId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
 
-  if (!isLoggedIn()) return <Navigate to="/login?redirect=/checkout/meps/return" replace />;
+  const loginRedirect = `/login?redirect=${encodeURIComponent(
+    `/checkout/meps/return${typeof window !== 'undefined' ? window.location.search : ''}`,
+  )}`;
 
   useEffect(() => {
+    if (!isLoggedIn()) return;
+
     const fromStorage = sessionStorage.getItem('mepsPendingOrderId');
     const fromQuery = params.get('cartId') || params.get('cart_id') || params.get('orderId');
     const id = fromStorage || fromQuery;
@@ -38,6 +42,8 @@ export function MepsReturnPage() {
         setMessage(err instanceof Error ? err.message : 'لم يكتمل الدفع');
       });
   }, [params]);
+
+  if (!isLoggedIn()) return <Navigate to={loginRedirect} replace />;
 
   return (
     <Layout>
