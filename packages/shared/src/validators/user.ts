@@ -1,13 +1,7 @@
 import { z } from 'zod';
 import { ROLES, SUPPORTED_LOCALES } from '../constants.js';
-
-const passwordSchema = z
-  .string()
-  .min(8, 'Password must be at least 8 characters')
-  .regex(/[A-Z]/, 'Password must contain an uppercase letter')
-  .regex(/[a-z]/, 'Password must contain a lowercase letter')
-  .regex(/[0-9]/, 'Password must contain a number')
-  .regex(/[^A-Za-z0-9]/, 'Password must contain a special character');
+import { passwordSchema } from './auth.js';
+import { shippingAddressSchema } from './checkout.js';
 
 /** Roles that may be assigned via admin UI (super_admin is gated in the service). */
 export const ASSIGNABLE_ROLE_SLUGS = [
@@ -56,7 +50,17 @@ export const changePasswordSchema = z.object({
   newPassword: passwordSchema,
 });
 
+export const createAddressSchema = shippingAddressSchema.extend({
+  isDefault: z.boolean().optional(),
+});
+
+export const updateAddressSchema = shippingAddressSchema.partial().extend({
+  isDefault: z.boolean().optional(),
+});
+
 export type AdminUserListQuery = z.infer<typeof adminUserListQuerySchema>;
 export type AdminCreateUserInput = z.infer<typeof adminCreateUserSchema>;
 export type AdminUpdateUserInput = z.infer<typeof adminUpdateUserSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+export type CreateAddressInput = z.infer<typeof createAddressSchema>;
+export type UpdateAddressInput = z.infer<typeof updateAddressSchema>;

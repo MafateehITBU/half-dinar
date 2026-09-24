@@ -1,0 +1,81 @@
+name: Apply Google Auth Env
+
+on:
+  workflow_dispatch:
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: SSH setup
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Write Google OAuth env (API + storefront Vite)
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$GOOGLE_CLIENT_ID"
+          B64_ID=$(printf '%s' "$GOOGLE_CLIENT_ID" | base64 -w0)
+          B64_SEC=$(printf '%s' "${GOOGLE_CLIENT_SECRET:-}" | base64 -w0)
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            B64_ID="$B64_ID" \
+            B64_SEC="$B64_SEC" \
+            'bash -s' <<'EOF'
+          set -euo pipefail
+          GOOGLE_CLIENT_ID=$(printf '%s' "$B64_ID" | base64 -d)
+          GOOGLE_CLIENT_SECRET=$(printf '%s' "$B64_SEC" | base64 -d)
+          export GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          def upsert(path: Path, vals: dict):
+              path.parent.mkdir(parents=True, exist_ok=True)
+              lines = path.read_text().splitlines() if path.exists() else []
+              out, seen = [], set()
+              for line in lines:
+                  if "=" in line and not line.strip().startswith("#"):
+                      k = line.split("=", 1)[0].strip()
+                      if k in vals:
+                          out.append(f"{k}={vals[k]}")
+                          seen.add(k)
+                          continue
+                  out.append(line)
+              for k, v in vals.items():
+                  if k not in seen and v != "":
+                      out.append(f"{k}={v}")
+              path.write_text("\n".join(out) + "\n")
+              path.chmod(0o600)
+              print("updated", path)
+
+          cid = os.environ["GOOGLE_CLIENT_ID"]
+          secret = os.environ.get("GOOGLE_CLIENT_SECRET") or ""
+          api_vals = {"GOOGLE_CLIENT_ID": cid}
+          if secret:
+              api_vals["GOOGLE_CLIENT_SECRET"] = secret
+          vite = {"VITE_GOOGLE_CLIENT_ID": cid}
+
+          upsert(Path("/var/www/abualnus/apps/api/.env"), api_vals)
+          upsert(Path("/var/www/abualnus/apps/storefront/.env"), vite)
+          st_api = Path("/var/www/mawjood-staging/apps/api/.env")
+          st_sf = Path("/var/www/mawjood-staging/apps/storefront/.env")
+          if st_api.parent.exists():
+              upsert(st_api, api_vals)
+          if st_sf.parent.exists():
+              upsert(st_sf, vite)
+          PY
+          echo APPLY_GOOGLE_ENV_DONE
+          EOF

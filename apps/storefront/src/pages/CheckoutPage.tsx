@@ -9,7 +9,7 @@ import { ProductImage } from '../components/ProductImage';
 import { Container } from '../components/ui/Container';
 import { PageHero } from '../components/ui/PageHero';
 import { useCart } from '../context/CartContext';
-import { api, isLoggedIn, type PublicConfig } from '../lib/api';
+import { api, isLoggedIn, type PublicConfig, type SavedAddress } from '../lib/api';
 import { formatZodErrors } from '../lib/errors';
 import { showError, showSuccess } from '../lib/toast';
 
@@ -38,15 +38,44 @@ export function CheckoutPage() {
   const [loyaltyPoints, setLoyaltyPoints] = useState(0);
   const [mepsEnabled, setMepsEnabled] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | 'new'>('new');
+  const [saveAddress, setSaveAddress] = useState(true);
+  const loggedIn = isLoggedIn();
 
-  if (!isLoggedIn()) return <Navigate to="/login?redirect=checkout" replace />;
+  const applySavedAddress = (a: SavedAddress) => {
+    const gov = JORDAN_GOVERNORATES.find(
+      (g) => g.nameAr === a.governorate || g.nameEn.toLowerCase() === a.governorate.toLowerCase(),
+    );
+    if (gov) setGovernorateCode(gov.code);
+    setAddress({
+      label: a.label || 'المنزل',
+      governorate: a.governorate,
+      city: a.city,
+      street: a.street,
+      building: a.building || '',
+      phone: a.phone,
+    });
+  };
 
   useEffect(() => {
+    if (!loggedIn) return;
     api.getPublicConfig().then((r) => {
       const cfg = r.data as PublicConfig;
       if (cfg.meps?.enabled) setMepsEnabled(true);
     });
-  }, []);
+    api
+      .getAddresses()
+      .then((r) => {
+        setSavedAddresses(r.data);
+        const def = r.data.find((a) => a.isDefault) ?? r.data[0];
+        if (def) {
+          setSelectedAddressId(def.id);
+          applySavedAddress(def);
+        }
+      })
+      .catch(() => {});
+  }, [loggedIn]);
 
   const fetchQuote = () => {
     setQuoteLoading(true);
@@ -65,8 +94,11 @@ export function CheckoutPage() {
   };
 
   useEffect(() => {
+    if (!loggedIn) return;
     if (step >= 1 && governorateCode) fetchQuote();
-  }, [step, governorateCode, cart?.subtotal]);
+  }, [step, governorateCode, cart?.subtotal, loggedIn]);
+
+  if (!loggedIn) return <Navigate to="/login?redirect=checkout" replace />;
 
   const onGovernorateChange = (code: string) => {
     setGovernorateCode(code);
@@ -115,7 +147,7 @@ export function CheckoutPage() {
         couponCode: couponCode || undefined,
         loyaltyPointsToUse: loyaltyPoints || undefined,
         notes: notes || undefined,
-        saveAddress: true,
+        saveAddress: selectedAddressId === 'new' ? saveAddress : false,
       });
       const data = result.data as { order: OrderDetail; redirectUrl?: string };
       if (paymentMethod === 'meps' && data.redirectUrl) {
@@ -177,10 +209,56 @@ export function CheckoutPage() {
             {step === 0 && (
               <div className="space-y-4">
                 <h2 className="text-lg font-bold">عنوان التوصيل</h2>
+
+                {savedAddresses.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-brand-ink">عناوين محفوظة</p>
+                    <div className="grid gap-2">
+                      {savedAddresses.map((a) => (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedAddressId(a.id);
+                            applySavedAddress(a);
+                            setFieldErrors({});
+                          }}
+                          className={`rounded-xl border p-3 text-start transition ${
+                            selectedAddressId === a.id
+                              ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                              : 'border-brand-sand bg-white'
+                          }`}
+                        >
+                          <span className="font-semibold text-brand-ink">
+                            {a.label || 'عنوان'}
+                            {a.isDefault ? ' · افتراضي' : ''}
+                          </span>
+                          <span className="mt-1 block text-xs text-brand-muted">
+                            {a.governorate} · {a.city} · {a.street}
+                          </span>
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedAddressId('new')}
+                        className={`rounded-xl border border-dashed p-3 text-start text-sm font-medium ${
+                          selectedAddressId === 'new'
+                            ? 'border-primary bg-primary/5 text-primary'
+                            : 'border-brand-sand text-brand-muted'
+                        }`}
+                      >
+                        + عنوان جديد
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {(selectedAddressId === 'new' || savedAddresses.length === 0) && (
+                  <>
                 <div>
                   <label className="label-field">المحافظة</label>
                   <select
-                    className="input-field"
+                    className="input-field text-base"
                     value={governorateCode}
                     onChange={(e) => onGovernorateChange(e.target.value)}
                   >
@@ -191,24 +269,45 @@ export function CheckoutPage() {
                 </div>
                 <div>
                   <label className="label-field">المدينة</label>
-                  <input className={`input-field ${fieldErrors.city ? 'border-red-400' : ''}`} value={address.city} onChange={(e) => setAddress((a) => ({ ...a, city: e.target.value }))} />
+                  <input className={`input-field text-base ${fieldErrors.city ? 'border-red-400' : ''}`} value={address.city} onChange={(e) => setAddress((a) => ({ ...a, city: e.target.value }))} />
                   {fieldErrors.city && <p className="mt-1 text-xs text-red-600">{fieldErrors.city}</p>}
                 </div>
                 <div>
                   <label className="label-field">الشارع</label>
-                  <input className={`input-field ${fieldErrors.street ? 'border-red-400' : ''}`} value={address.street} onChange={(e) => setAddress((a) => ({ ...a, street: e.target.value }))} />
+                  <input className={`input-field text-base ${fieldErrors.street ? 'border-red-400' : ''}`} value={address.street} onChange={(e) => setAddress((a) => ({ ...a, street: e.target.value }))} />
                   {fieldErrors.street && <p className="mt-1 text-xs text-red-600">{fieldErrors.street}</p>}
                 </div>
                 <div>
                   <label className="label-field">البناية / الطابق (اختياري)</label>
-                  <input className="input-field" value={address.building} onChange={(e) => setAddress((a) => ({ ...a, building: e.target.value }))} />
+                  <input className="input-field text-base" value={address.building} onChange={(e) => setAddress((a) => ({ ...a, building: e.target.value }))} />
                 </div>
                 <div>
                   <label className="label-field">رقم الهاتف</label>
-                  <input className={`input-field ${fieldErrors.phone ? 'border-red-400' : ''}`} value={address.phone} onChange={(e) => setAddress((a) => ({ ...a, phone: e.target.value }))} />
+                  <input className={`input-field text-base ${fieldErrors.phone ? 'border-red-400' : ''}`} inputMode="tel" dir="ltr" value={address.phone} onChange={(e) => setAddress((a) => ({ ...a, phone: e.target.value }))} />
                   {fieldErrors.phone && <p className="mt-1 text-xs text-red-600">{fieldErrors.phone}</p>}
                 </div>
-                <button type="button" onClick={goToShipping} className="btn-primary w-full">متابعة للشحن</button>
+                <label className="flex min-h-11 items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={saveAddress}
+                    onChange={(e) => setSaveAddress(e.target.checked)}
+                  />
+                  حفظ العنوان لحين الطلبات القادمة
+                </label>
+                  </>
+                )}
+
+                {selectedAddressId !== 'new' && savedAddresses.length > 0 && (
+                  <button
+                    type="button"
+                    className="text-sm font-medium text-primary-700 underline"
+                    onClick={() => setSelectedAddressId('new')}
+                  >
+                    تعديل كعنوان جديد
+                  </button>
+                )}
+
+                <button type="button" onClick={goToShipping} className="btn-primary w-full py-3.5 text-base">متابعة للشحن</button>
               </div>
             )}
 

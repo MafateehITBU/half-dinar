@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   forgotPasswordSchema,
+  googleAuthSchema,
   loginSchema,
   refreshTokenSchema,
   registerSchema,
@@ -31,6 +32,15 @@ authRouter.post(
     const input = loginSchema.parse(req.body);
     const ip = req.ip || req.socket.remoteAddress || 'unknown';
     const result = await authService.login(input.email, input.password, ip);
+    res.json(result);
+  }),
+);
+
+authRouter.post(
+  '/google',
+  asyncHandler(async (req, res) => {
+    const input = googleAuthSchema.parse(req.body);
+    const result = await authService.loginWithGoogle(input.idToken, input.referralCode);
     res.json(result);
   }),
 );

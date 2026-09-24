@@ -53,6 +53,7 @@ export function createApp() {
 
   app.use('/api/v1/auth/login', authStrictLimiter);
   app.use('/api/v1/auth/register', authStrictLimiter);
+  app.use('/api/v1/auth/google', authStrictLimiter);
   app.use('/api/v1/auth/forgot-password', authSensitiveLimiter);
   app.use('/api/v1/auth/reset-password', authSensitiveLimiter);
   app.use('/api/v1/auth/verify-email', authSensitiveLimiter);

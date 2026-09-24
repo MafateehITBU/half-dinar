@@ -49,6 +49,10 @@ export const settingsService = {
       meps: {
         enabled: env.isMepsConfigured,
       },
+      googleAuth: {
+        enabled: env.isGoogleAuthConfigured,
+        clientId: env.googleClientId,
+      },
     };
   },
 

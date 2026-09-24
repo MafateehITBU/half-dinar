@@ -8,6 +8,7 @@ import { Container } from '../components/ui/Container';
 import { PageHero } from '../components/ui/PageHero';
 import { api, clearAuth, isLoggedIn } from '../lib/api';
 import { confirmAction, showError, showSuccess } from '../lib/toast';
+import { AccountAddressesPanel } from '../components/AccountAddressesPanel';
 
 interface LoyaltyData {
   pointsBalance: number;
@@ -34,10 +35,11 @@ interface ProfileData {
   createdAt: string;
 }
 
-type Tab = 'profile' | 'password' | 'loyalty' | 'referral';
+type Tab = 'profile' | 'addresses' | 'password' | 'loyalty' | 'referral';
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'profile', label: 'الملف الشخصي', icon: 'mdi:account-outline' },
+  { id: 'addresses', label: 'العناوين', icon: 'mdi:map-marker-outline' },
   { id: 'password', label: 'كلمة المرور', icon: 'mdi:lock-outline' },
   { id: 'loyalty', label: 'الولاء', icon: 'mdi:star-circle-outline' },
   { id: 'referral', label: 'الإحالة', icon: 'mdi:account-multiple-outline' },
@@ -267,6 +269,8 @@ export function AccountPage() {
                 )}
               </div>
             )}
+
+            {tab === 'addresses' && <AccountAddressesPanel />}
 
             {tab === 'password' && (
               <div>

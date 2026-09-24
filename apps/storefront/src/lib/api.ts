@@ -4,6 +4,18 @@ const API_BASE = '/api/v1';
 
 export interface PublicConfig {
   meps?: { enabled: boolean };
+  googleAuth?: { enabled: boolean; clientId: string };
+}
+
+export interface SavedAddress {
+  id: string;
+  label: string | null;
+  governorate: string;
+  city: string;
+  street: string;
+  building: string | null;
+  phone: string;
+  isDefault: boolean;
 }
 
 function getAuthHeaders(): HeadersInit {
@@ -80,6 +92,14 @@ export const api = {
     ),
   register: (data: Record<string, unknown>) =>
     request('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+  loginWithGoogle: (idToken: string, referralCode?: string) =>
+    request<{ user: unknown; tokens: { accessToken: string; refreshToken: string } }>(
+      '/auth/google',
+      {
+        method: 'POST',
+        body: JSON.stringify({ idToken, referralCode: referralCode || undefined }),
+      },
+    ),
   verifyEmail: (token: string) =>
     request<{ message: string }>('/auth/verify-email', {
       method: 'POST',
@@ -96,6 +116,24 @@ export const api = {
       body: JSON.stringify({ token, password }),
     }),
   mergeCart: () => request('/cart/merge', { method: 'POST', body: '{}' }),
+  getAddresses: () => request<{ data: SavedAddress[] }>('/users/me/addresses'),
+  createAddress: (data: Record<string, unknown>) =>
+    request<{ data: SavedAddress }>('/users/me/addresses', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateAddress: (id: string, data: Record<string, unknown>) =>
+    request<{ data: SavedAddress }>(`/users/me/addresses/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteAddress: (id: string) =>
+    request<void>(`/users/me/addresses/${id}`, { method: 'DELETE' }),
+  setDefaultAddress: (id: string) =>
+    request<{ data: SavedAddress }>(`/users/me/addresses/${id}/default`, {
+      method: 'POST',
+      body: '{}',
+    }),
   getCategories: () => request<{ data: unknown[] }>('/categories'),
   getProducts: (params: URLSearchParams) =>
     request<{ data: unknown[]; pagination: unknown }>(`/products?${params}`),

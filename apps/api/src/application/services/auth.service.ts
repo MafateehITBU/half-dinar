@@ -15,7 +15,7 @@ type UserWithRoles = {
   firstName: string;
   lastName: string;
   locale: 'ar' | 'en';
-  passwordHash: string;
+  passwordHash: string | null;
   emailVerifiedAt: Date | null;
   isActive: boolean;
   roles: Array<{
@@ -232,6 +232,14 @@ export const authService = {
       throw new AppError(401, ErrorCodes.UNAUTHORIZED, 'Invalid email or password');
     }
 
+    if (!user.passwordHash) {
+      throw new AppError(
+        401,
+        ErrorCodes.UNAUTHORIZED,
+        'هذا الحساب يستخدم تسجيل الدخول عبر Google',
+      );
+    }
+
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
       await recordLoginFailure(email, ip);
@@ -364,5 +372,153 @@ export const authService = {
       throw new AppError(404, ErrorCodes.NOT_FOUND, 'User not found');
     }
     return toAuthUser(user);
+  },
+
+  async loginWithGoogle(idToken: string, referralCode?: string): Promise<AuthResponse> {
+    if (!env.isGoogleAuthConfigured) {
+      throw new AppError(503, ErrorCodes.INTERNAL_ERROR, 'Google Sign-In is not configured');
+    }
+
+    const { OAuth2Client } = await import('google-auth-library');
+    const client = new OAuth2Client(env.googleClientId);
+    let payload: {
+      sub?: string;
+      email?: string;
+      email_verified?: boolean | string;
+      given_name?: string;
+      family_name?: string;
+      name?: string;
+    };
+    try {
+      const ticket = await client.verifyIdToken({
+        idToken,
+        audience: env.googleClientId,
+      });
+      payload = ticket.getPayload() ?? {};
+    } catch {
+      throw new AppError(401, ErrorCodes.UNAUTHORIZED, 'رمز Google غير صالح');
+    }
+
+    const googleSub = payload.sub;
+    const email = payload.email?.toLowerCase().trim();
+    if (!googleSub || !email) {
+      throw new AppError(401, ErrorCodes.UNAUTHORIZED, 'تعذر قراءة بيانات Google');
+    }
+
+    const emailVerified =
+      payload.email_verified === true || payload.email_verified === 'true';
+    if (!emailVerified) {
+      throw new AppError(401, ErrorCodes.UNAUTHORIZED, 'بريد Google غير مفعّل');
+    }
+
+    const given = (payload.given_name || '').trim();
+    const family = (payload.family_name || '').trim();
+    const full = (payload.name || '').trim();
+    let firstName = given || full.split(/\s+/)[0] || 'مستخدم';
+    let lastName = family || full.split(/\s+/).slice(1).join(' ') || '';
+
+    let user = await prisma.user.findFirst({
+      where: { OR: [{ googleSub }, { email }] },
+      include: {
+        roles: {
+          include: {
+            role: {
+              include: {
+                permissions: { include: { permission: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (user) {
+      if (!user.isActive) {
+        throw new AppError(401, ErrorCodes.UNAUTHORIZED, 'الحساب غير نشط');
+      }
+      const data: { googleSub?: string; emailVerifiedAt?: Date; firstName?: string; lastName?: string } =
+        {};
+      if (!user.googleSub) data.googleSub = googleSub;
+      if (!user.emailVerifiedAt) data.emailVerifiedAt = new Date();
+      if (!user.firstName && firstName) data.firstName = firstName;
+      if (!user.lastName && lastName) data.lastName = lastName;
+      if (Object.keys(data).length) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data,
+          include: {
+            roles: {
+              include: {
+                role: {
+                  include: {
+                    permissions: { include: { permission: true } },
+                  },
+                },
+              },
+            },
+          },
+        });
+      }
+      return issueTokens(user);
+    }
+
+    const customerRole = await prisma.role.findUniqueOrThrow({
+      where: { slug: ROLES.CUSTOMER },
+    });
+
+    let referredByUserId: string | undefined;
+    if (referralCode) {
+      const referrer = await prisma.user.findUnique({
+        where: { referralCode: referralCode.toUpperCase() },
+      });
+      if (referrer) referredByUserId = referrer.id;
+    }
+
+    let ownReferral = generateReferralCode();
+    while (await prisma.user.findUnique({ where: { referralCode: ownReferral } })) {
+      ownReferral = generateReferralCode();
+    }
+
+    user = await prisma.user.create({
+      data: {
+        email,
+        passwordHash: null,
+        googleSub,
+        firstName,
+        lastName,
+        locale: 'ar',
+        ageConfirmed: true,
+        emailVerifiedAt: new Date(),
+        referralCode: ownReferral,
+        referredByUserId,
+        roles: { create: { roleId: customerRole.id } },
+        loyaltyAccount: { create: { pointsBalance: 0 } },
+        wishlist: { create: {} },
+      },
+      include: {
+        roles: {
+          include: {
+            role: {
+              include: {
+                permissions: { include: { permission: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (referredByUserId) {
+      await prisma.referral.create({
+        data: {
+          referrerId: referredByUserId,
+          refereeId: user.id,
+          status: 'registered',
+        },
+      });
+    }
+
+    await emailService.sendWelcome(user.email, user.firstName).catch(() => {});
+    return issueTokens(user);
   },
 };

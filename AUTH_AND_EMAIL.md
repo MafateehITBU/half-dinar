@@ -14,9 +14,10 @@
 | Forgot / reset password | 🟡 Link flow live | Forgot page + login link deployed; OTP codes still planned |
 | Order confirmation email | ✅ Done | Needs working SMTP |
 | Order status update emails | ❌ Todo | On admin status change |
-| Saved addresses (DB + checkout save) | 🟡 Partial | No account UI / checkout picker |
-| Google Sign-In (Gmail) | 🟡 Keys received | OAuth Web client created + consent Published; code wiring next |
-| Mobile-first auth / checkout / account | 🟡 Partial | Bottom nav exists; OTP + address UX next |
+| Saved addresses | ✅ Live | Account «العناوين» + checkout picker + CRUD API |
+| Google Sign-In (Gmail) | ✅ Live | GIS on login; `POST /auth/google`; env on VPS |
+| Easier signup | ✅ Live | Full name; softer password (8+ letter+number); Google CTA |
+| Mobile-first auth / checkout / account | 🟡 Improved | Larger inputs, address chips, Google button |
 
 ---
 
@@ -102,6 +103,32 @@ STOREFRONT_URL=https://mawjood.online
 1. Register a new account on the store, **or** use Forgot password, **or** place a test order.
 2. Check inbox (and Spam) for the email from that Gmail.
 3. If nothing arrives: confirm App Password has no spaces, 2SV is on, and API was restarted after editing `.env`.
+
+---
+
+### Why mail goes to Spam (and how to fix it)
+
+Using **Gmail App Password** (`mafateehjordanit@gmail.com`) works, but inbox providers often treat it as less trustworthy when:
+
+| Cause | What happens |
+|-------|----------------|
+| From = `@gmail.com`, links = `mawjood.online` | Domain mismatch → Spam score ↑ |
+| No SPF / DKIM / DMARC on **your** domain | Receivers cannot verify the shop owns the mail |
+| New / low sending volume | No sender reputation yet |
+| HTML + reset/order links | Looks like phishing to filters |
+
+**Quick (customers / you):**
+1. Open the message in Spam → **Not spam** / **Report not spam**.
+2. Add `mafateehjordanit@gmail.com` to contacts.
+3. In Gmail: create a filter → from that address → **Never send it to Spam**.
+
+**Proper fix (recommended for production):**
+1. Create mailbox or use a provider for **`noreply@mawjood.online`** (Google Workspace, or Resend / SendGrid).
+2. Add DNS on `mawjood.online`: **SPF**, **DKIM**, **DMARC** (provider gives exact records).
+3. Set `SMTP_FROM=MawJooD <noreply@mawjood.online>` (or Resend API).
+4. Keep App Password Gmail only as a temporary bridge.
+
+Until the domain is verified, some messages (especially password-reset) will keep hitting Spam for some users.
 
 ---
 

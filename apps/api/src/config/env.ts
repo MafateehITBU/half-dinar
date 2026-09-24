@@ -41,6 +41,8 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().optional(),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -72,4 +74,6 @@ export const env = {
     parsed.data.SMTP_HOST && parsed.data.SMTP_USER && parsed.data.SMTP_PASS,
   ),
   storefrontUrl: parsed.data.STOREFRONT_URL,
+  isGoogleAuthConfigured: Boolean(parsed.data.GOOGLE_CLIENT_ID),
+  googleClientId: parsed.data.GOOGLE_CLIENT_ID ?? '',
 };

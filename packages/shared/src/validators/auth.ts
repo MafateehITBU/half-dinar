@@ -1,19 +1,18 @@
 import { z } from 'zod';
 import { SUPPORTED_LOCALES } from '../constants.js';
 
-const passwordSchema = z
+/** Easier signup for mobile: 8+ chars, letter + number (no special char required). */
+export const passwordSchema = z
   .string()
-  .min(8, 'Password must be at least 8 characters')
-  .regex(/[A-Z]/, 'Password must contain an uppercase letter')
-  .regex(/[a-z]/, 'Password must contain a lowercase letter')
-  .regex(/[0-9]/, 'Password must contain a number')
-  .regex(/[^A-Za-z0-9]/, 'Password must contain a special character');
+  .min(8, 'كلمة المرور يجب أن تكون 8 أحرف على الأقل')
+  .regex(/[A-Za-z\u0600-\u06FF]/, 'كلمة المرور يجب أن تحتوي على حرف')
+  .regex(/[0-9]/, 'كلمة المرور يجب أن تحتوي على رقم');
 
 export const registerSchema = z.object({
   email: z.string().email(),
   password: passwordSchema,
   firstName: z.string().min(1).max(100),
-  lastName: z.string().min(1).max(100),
+  lastName: z.string().max(100).default(''),
   phone: z.string().min(7).max(20).optional(),
   locale: z.enum(SUPPORTED_LOCALES).default('ar'),
   ageConfirmed: z.literal(true, {
@@ -25,6 +24,11 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+});
+
+export const googleAuthSchema = z.object({
+  idToken: z.string().min(20),
+  referralCode: z.string().min(4).max(20).optional(),
 });
 
 export const refreshTokenSchema = z.object({
@@ -46,3 +50,4 @@ export const verifyEmailSchema = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type GoogleAuthInput = z.infer<typeof googleAuthSchema>;

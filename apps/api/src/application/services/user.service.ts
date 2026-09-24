@@ -55,6 +55,14 @@ export const userService = {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new AppError(404, ErrorCodes.NOT_FOUND, 'User not found');
 
+    if (!user.passwordHash) {
+      throw new AppError(
+        400,
+        ErrorCodes.VALIDATION_ERROR,
+        'هذا الحساب يستخدم Google فقط — لا توجد كلمة مرور لتغييرها',
+      );
+    }
+
     const valid = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!valid) {
       throw new AppError(400, ErrorCodes.VALIDATION_ERROR, 'كلمة المرور الحالية غير صحيحة');
