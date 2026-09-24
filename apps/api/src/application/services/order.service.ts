@@ -42,6 +42,7 @@ function mapOrderDetail(order: OrderWithRelations): OrderDetail {
     })),
     shippingAddress: order.shippingAddress as Record<string, unknown> | null,
     notes: order.notes,
+    paytabsTranRef: order.paytabsTranRef ?? null,
     timeline: order.statusHistory.map((h) => ({
       id: h.id,
       fromStatus: h.fromStatus as OrderStatus | null,

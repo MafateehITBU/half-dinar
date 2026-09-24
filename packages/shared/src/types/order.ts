@@ -45,6 +45,8 @@ export interface OrderDetail extends OrderSummary {
   shippingAddress: Record<string, unknown> | null;
   notes: string | null;
   timeline: OrderTimelineEntry[];
+  /** PayTabs/MEPS transaction reference when paid by card */
+  paytabsTranRef?: string | null;
 }
 
 export interface CheckoutQuote {

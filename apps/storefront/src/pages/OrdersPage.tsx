@@ -72,8 +72,24 @@ export function OrdersPage() {
                     {STATUS_AR[o.status] ?? o.status}
                   </span>
                 </div>
-                <div className="mt-4 flex items-center justify-between border-t pt-4" style={{ borderColor: 'var(--brand-sand)' }}>
-                  <span className="text-sm text-brand-muted">المجموع</span>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-4" style={{ borderColor: 'var(--brand-sand)' }}>
+                  <div className="text-sm text-brand-muted">
+                    <span className="font-semibold text-brand-ink">
+                      {o.paymentMethod === 'cod'
+                        ? 'عند الاستلام'
+                        : o.paymentMethod === 'meps'
+                          ? 'بطاقة Visa / Mastercard'
+                          : o.paymentMethod}
+                    </span>
+                    <span className="mx-1.5">·</span>
+                    <span>
+                      {o.paymentStatus === 'paid'
+                        ? 'مدفوع'
+                        : o.paymentStatus === 'failed'
+                          ? 'فشل الدفع'
+                          : 'غير مدفوع'}
+                    </span>
+                  </div>
                   <span className="text-xl font-extrabold text-brand-green">{o.total.toFixed(2)} <span className="text-xs font-medium">د.أ</span></span>
                 </div>
               </Link>
