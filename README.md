@@ -20,6 +20,7 @@ Always read **[PROJECT_MEMORY.md](./PROJECT_MEMORY.md)** first when continuing d
 | Document | Purpose |
 |----------|---------|
 | [PROJECT_MEMORY.md](./PROJECT_MEMORY.md) | Living project brain — update after major work |
+| [AUTH_AND_EMAIL.md](./AUTH_AND_EMAIL.md) | Google Sign-In setup, SMTP, OTP/addresses roadmap |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | System design |
 | [DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md) | Data model |
 | [API_DOCUMENTATION.md](./API_DOCUMENTATION.md) | REST API outline |

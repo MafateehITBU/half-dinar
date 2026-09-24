@@ -1,8 +1,8 @@
 # PROJECT MEMORY — MawJooD (موجود) / Abu Al-Nas E-Commerce
 
-> **Last updated:** 2026-07-22  
+> **Last updated:** 2026-09-24  
 > **Repo:** `half-dinar`  
-> **Status:** Phases 1–3 complete. Phase 4 live — production `mawjood.online` + staging `staging.mawjood.online`; rich text CMS; security hardening for Visa/Stripe.
+> **Status:** Live production `mawjood.online` + staging; payments = COD + MEPS/PayTabs Jordan. Auth/email/Google roadmap: see **AUTH_AND_EMAIL.md**.
 
 Read this file first in every new session before touching the codebase.
 
@@ -22,7 +22,7 @@ Read this file first in every new session before touching the codebase.
 | Age restriction | 13+ |
 | Refund window | **14 days** (manual admin approval, evidence required) |
 | B2B | No |
-| Payments | COD + **Stripe** (Visa/cards via Payment Element) |
+| Payments | COD + **MEPS / PayTabs Jordan** (Visa/cards) |
 
 ---
 
@@ -57,8 +57,9 @@ half-dinar/
 | ORM | Prisma (recommended) | Migrations, type-safe |
 | Images | **Multer** → **Cloudinary** | |
 | Auth | JWT access + refresh, bcrypt | Account required at checkout |
-| Email | **SMTP (Gmail)** | Transactional + newsletter |
-| Payments | **COD** + **Stripe (test)** | Pluggable provider interface |
+| Email | **SMTP (Gmail)** | Transactional; setup in AUTH_AND_EMAIL.md |
+| Auth extras | Google Sign-In + OTP codes | Planned — AUTH_AND_EMAIL.md |
+| Payments | **COD** + **MEPS / PayTabs Jordan** | Stripe legacy unused |
 | Hosting | VPS, Certbot SSL | Domain TBD |
 | Environments | dev, staging, production | CI/CD GitHub Actions — **later**; local dev now |
 | Mobile API | REST designed for future app | No mobile app in v1 |
@@ -117,7 +118,8 @@ Base: `https://api.{domain}/api/v1`
 See `API_DOCUMENTATION.md` when generated; OpenAPI in `apps/api`.
 
 **Auth:** register, login, logout, refresh, verify-email, forgot/reset password  
-**Users:** profile, addresses, payment methods (saved for Stripe later), wishlist, orders  
+**Auth planned:** Google Sign-In, 6-digit email OTP (verify + reset) — see `AUTH_AND_EMAIL.md`  
+**Users:** profile, addresses (model + checkout save; CRUD UI planned), wishlist, orders  
 **Catalog:** categories, products, packages, search (`/search?q=`), tags  
 **Cart:** guest + merge on login  
 **Checkout:** shipping quote, apply coupon, place order  

@@ -1,0 +1,102 @@
+name: Apply SMTP Env
+
+on:
+  workflow_dispatch:
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: SSH setup
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -T 10 -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Write SMTP keys and restart APIs
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+        run: |
+          set -euo pipefail
+          test -n "$SMTP_USER"
+          test -n "$SMTP_PASS"
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            SMTP_USER="$SMTP_USER" \
+            SMTP_PASS="$SMTP_PASS" \
+            SMTP_FROM="${SMTP_FROM:-}" \
+            'bash -s' <<'EOF'
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          def upsert(path: Path, vals: dict):
+              path.parent.mkdir(parents=True, exist_ok=True)
+              lines = path.read_text().splitlines() if path.exists() else []
+              out, seen = [], set()
+              for line in lines:
+                  if "=" in line and not line.strip().startswith("#"):
+                      k = line.split("=", 1)[0].strip()
+                      if k in vals:
+                          out.append(f"{k}={vals[k]}")
+                          seen.add(k)
+                          continue
+                  out.append(line)
+              for k, v in vals.items():
+                  if k not in seen and v != "":
+                      out.append(f"{k}={v}")
+              path.write_text("\n".join(out) + "\n")
+              path.chmod(0o600)
+              print("updated", path)
+
+          user = os.environ["SMTP_USER"]
+          password = os.environ["SMTP_PASS"]
+          frm = os.environ.get("SMTP_FROM") or f"MawJooD <{user}>"
+          common = {
+              "SMTP_HOST": "smtp.gmail.com",
+              "SMTP_PORT": "587",
+              "SMTP_USER": user,
+              "SMTP_PASS": password,
+              "SMTP_FROM": frm,
+          }
+          upsert(Path("/var/www/abualnus/apps/api/.env"), {
+              **common,
+              "STOREFRONT_URL": "https://mawjood.online",
+          })
+          st = Path("/var/www/mawjood-staging/apps/api/.env")
+          if st.parent.exists():
+              upsert(st, {
+                  **common,
+                  "STOREFRONT_URL": "https://staging.mawjood.online",
+              })
+          PY
+
+          cd /var/www/abualnus
+          pm2 delete abualnus-api || true
+          pm2 start deploy/ecosystem.config.cjs
+          for i in $(seq 1 15); do curl -fsS http://127.0.0.1:4000/api/v1/health >/dev/null 2>&1 && break; sleep 2; done
+          curl -fsS http://127.0.0.1:4000/api/v1/health; echo
+
+          if [ -d /var/www/mawjood-staging ]; then
+            cd /var/www/mawjood-staging
+            pm2 delete mawjood-api-staging || true
+            pm2 start deploy/ecosystem.staging.config.cjs
+            for i in $(seq 1 15); do curl -fsS http://127.0.0.1:4001/api/v1/health >/dev/null 2>&1 && break; sleep 2; done
+            curl -fsS http://127.0.0.1:4001/api/v1/health || true; echo
+          fi
+          pm2 save
+
+          cd /var/www/abualnus/apps/api
+          node -e "require('dotenv').config(); console.log('smtp', !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS), process.env.SMTP_USER);"
+          echo APPLY_SMTP_DONE
+          EOF
