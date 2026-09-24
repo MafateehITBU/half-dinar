@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Icon } from '@iconify/react';
+import { formatMoney, toNum } from '@half-dinar/shared';
 import { AdminLayout } from '../components/AdminLayout';
 import { PageHeader } from '../components/ui/PageHeader';
 import { DataTable, type BulkAction, type Column } from '../components/ui/DataTable';
@@ -18,10 +19,10 @@ interface CouponRow {
   id: string;
   code: string;
   type: string;
-  value: number;
+  value: number | string;
+  minOrderValue?: number | string | null;
   usedCount: number;
   isActive?: boolean;
-  minOrderValue?: number | null;
 }
 
 interface CampaignRow {
@@ -190,12 +191,16 @@ export function PromotionsPage() {
       key: 'value',
       header: 'القيمة',
       render: (c) =>
-        c.type === 'percent' ? `${c.value}%` : c.type === 'free_shipping' ? '—' : `${c.value.toFixed(2)} د.أ`,
+        c.type === 'percent'
+          ? `${toNum(c.value)}%`
+          : c.type === 'free_shipping'
+            ? '—'
+            : `${formatMoney(c.value)} د.أ`,
     },
     {
       key: 'min',
       header: 'حد أدنى للطلب',
-      render: (c) => (c.minOrderValue ? `${c.minOrderValue} د.أ` : '—'),
+      render: (c) => (c.minOrderValue != null && c.minOrderValue !== '' ? `${formatMoney(c.minOrderValue)} د.أ` : '—'),
     },
     { key: 'used', header: 'مرات الاستخدام', render: (c) => c.usedCount },
     {

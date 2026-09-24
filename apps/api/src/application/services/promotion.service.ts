@@ -170,7 +170,13 @@ export const promotionService = {
 
   // Admin CRUD
   async listCoupons() {
-    return prisma.coupon.findMany({ orderBy: { createdAt: 'desc' }, include: { restrictions: true } });
+    return prisma.coupon.findMany({ orderBy: { createdAt: 'desc' }, include: { restrictions: true } }).then((rows) =>
+      rows.map((c) => ({
+        ...c,
+        value: decimalToNumber(c.value),
+        minOrderValue: c.minOrderValue != null ? decimalToNumber(c.minOrderValue) : null,
+      })),
+    );
   },
 
   async createCoupon(input: {
