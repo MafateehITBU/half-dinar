@@ -181,8 +181,9 @@ export const refundService = {
         order.paymentMethod === 'meps' &&
         order.paymentStatus === 'paid' &&
         Boolean(order.paytabsTranRef);
+      const wantCardApi = (input.cardRefund ?? 'auto') === 'auto';
 
-      if (isCardPaid) {
+      if (isCardPaid && wantCardApi) {
         if (!env.isMepsConfigured) {
           throw new AppError(
             503,
@@ -198,6 +199,9 @@ export const refundService = {
           description: `Refund ${order.orderNumber}: ${refund.reason.slice(0, 80)}`,
         });
         cardRefundNote = `PayTabs refund OK · ref ${result.tranRef}`;
+      } else if (isCardPaid && !wantCardApi) {
+        cardRefundNote =
+          'موافقة يدوية — استرداد البطاقة من لوحة MEPS/PayTabs (API غير مستخدم أو غير مدعوم)';
       } else if (order.paymentMethod === 'meps' && order.paymentStatus !== 'paid') {
         throw new AppError(
           400,

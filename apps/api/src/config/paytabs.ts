@@ -135,10 +135,16 @@ export async function refundTransaction(input: {
 
   const authorised = data.payment_result?.response_status === 'A';
   if (!authorised) {
-    const msg =
+    const code = data.payment_result?.response_code ?? data.code;
+    const raw =
       data.payment_result?.response_message ||
       data.message ||
       'PayTabs رفض عملية الاسترداد';
+    // 335 = acquirer does not support this follow-up type (common with Apple Pay / some banks)
+    const msg =
+      String(code) === '335'
+        ? `البنك المستحوذ لا يدعم الاسترداد عبر الـ API لهذه العملية (${raw}). استرد من لوحة MEPS ثم اختر «موافقة يدوية»، أو راسل PayTabs لتفعيل Refund على البروفايل.`
+        : `فشل استرداد البطاقة [${code ?? '—'}]: ${raw}`;
     throw new AppError(502, ErrorCodes.VALIDATION_ERROR, msg);
   }
 

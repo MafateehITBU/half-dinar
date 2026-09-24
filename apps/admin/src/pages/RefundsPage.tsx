@@ -50,15 +50,25 @@ export function RefundsPage() {
     [filter],
   );
 
-  const moderate = async (r: RefundRow, status: 'approved' | 'under_review' | 'rejected') => {
+  const moderate = async (
+    r: RefundRow,
+    status: 'approved' | 'under_review' | 'rejected',
+    cardRefund: 'auto' | 'skip' = 'auto',
+  ) => {
     if (status === 'approved') {
       const card = r.order?.canCardRefund;
       const ok = await confirmAction(
-        card ? 'موافقة + استرداد البطاقة؟' : 'الموافقة على الاسترداد؟',
-        card
-          ? `سيتم إرجاع ${formatMoney(r.order?.total)} د.أ إلى بطاقة العميل عبر PayTabs (MEPS).`
-          : `طلب COD/يدوي — سيتم تعليم الطلب كمسترد. أعد المبلغ للعميل يدوياً إن لزم.`,
-        { confirmText: 'موافقة', variant: card ? 'danger' : 'default' },
+        cardRefund === 'auto' && card
+          ? 'موافقة + استرداد عبر PayTabs؟'
+          : card
+            ? 'موافقة يدوية (بدون API)؟'
+            : 'الموافقة على الاسترداد؟',
+        cardRefund === 'auto' && card
+          ? `سيتم طلب إرجاع ${formatMoney(r.order?.total)} د.أ عبر PayTabs. إذا ظهر خطأ 335 (Apple Pay / البنك لا يدعم API)، استرد من لوحة MEPS ثم استخدم «موافقة يدوية».`
+          : card
+            ? `لن يُستدعى PayTabs. استخدم هذا بعد استرداد المبلغ يدوياً من لوحة MEPS (شائع مع Apple Pay).`
+            : `طلب COD — سيتم تعليم الطلب كمسترد. أعد المبلغ للعميل يدوياً إن لزم.`,
+        { confirmText: 'موافقة', variant: card && cardRefund === 'auto' ? 'danger' : 'default' },
       );
       if (!ok) return;
     }
@@ -72,12 +82,12 @@ export function RefundsPage() {
 
     setBusyId(r.id);
     try {
-      await adminApi.moderateRefund(r.id, status);
+      await adminApi.moderateRefund(r.id, status, { cardRefund });
       await reload();
       await showToastSuccess(
         status === 'approved'
-          ? r.order?.canCardRefund
-            ? 'تمت الموافقة وتم إرجاع المبلغ للبطاقة'
+          ? cardRefund === 'auto' && r.order?.canCardRefund
+            ? 'تمت الموافقة وتم إرسال استرداد البطاقة'
             : 'تمت الموافقة على الاسترداد'
           : status === 'rejected'
             ? 'تم رفض الطلب'
@@ -193,14 +203,35 @@ export function RefundsPage() {
                 )}
                 {['requested', 'under_review'].includes(r.status) && (
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className="btn-primary text-xs disabled:opacity-50"
-                      disabled={busyId === r.id}
-                      onClick={() => void moderate(r, 'approved')}
-                    >
-                      {r.order?.canCardRefund ? 'موافقة + استرداد البطاقة' : 'موافقة'}
-                    </button>
+                    {r.order?.canCardRefund ? (
+                      <>
+                        <button
+                          type="button"
+                          className="btn-primary text-xs disabled:opacity-50"
+                          disabled={busyId === r.id}
+                          onClick={() => void moderate(r, 'approved', 'auto')}
+                        >
+                          موافقة + PayTabs
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary text-xs disabled:opacity-50"
+                          disabled={busyId === r.id}
+                          onClick={() => void moderate(r, 'approved', 'skip')}
+                        >
+                          موافقة يدوية (بعد MEPS)
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn-primary text-xs disabled:opacity-50"
+                        disabled={busyId === r.id}
+                        onClick={() => void moderate(r, 'approved', 'skip')}
+                      >
+                        موافقة
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="btn-secondary text-xs disabled:opacity-50"
@@ -218,6 +249,12 @@ export function RefundsPage() {
                       رفض
                     </button>
                   </div>
+                )}
+                {r.order?.canCardRefund && ['requested', 'under_review'].includes(r.status) && (
+                  <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+                    ملاحظة: دفعات Apple Pay أحياناً ترفض الاسترداد عبر API (كود 335). استرد من لوحة MEPS ثم
+                    اضغط «موافقة يدوية».
+                  </p>
                 )}
               </li>
             ))}

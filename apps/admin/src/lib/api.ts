@@ -353,10 +353,18 @@ export const adminApi = {
     request<{ data: unknown }>(`/admin/analytics/dashboard?days=${days}`),
   getRefunds: (status: string, page = 1, limit = 20) =>
     request<PaginatedResponse<unknown>>(`/admin/refunds${buildQuery({ status, page, limit })}`),
-  moderateRefund: (id: string, status: string, adminNotes?: string) =>
+  moderateRefund: (
+    id: string,
+    status: string,
+    opts?: { adminNotes?: string; cardRefund?: 'auto' | 'skip' },
+  ) =>
     request(`/admin/refunds/${id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ status, adminNotes }),
+      body: JSON.stringify({
+        status,
+        adminNotes: opts?.adminNotes,
+        cardRefund: opts?.cardRefund ?? 'auto',
+      }),
     }),
   importProducts: (csv: string) =>
     request<{ data: { created: number; updated: number; errors: string[] } }>(
