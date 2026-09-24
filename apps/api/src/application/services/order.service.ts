@@ -101,9 +101,50 @@ export const orderService = {
     };
   },
 
-  async listAdmin(page = 1, limit = 20, status?: OrderStatus) {
+  async listAdmin(
+    page = 1,
+    limit = 20,
+    filters: {
+      status?: OrderStatus;
+      paymentMethod?: 'cod' | 'meps' | 'stripe';
+      paymentStatus?: 'pending' | 'paid' | 'failed' | 'refunded';
+      dateFrom?: string;
+      dateTo?: string;
+      q?: string;
+    } = {},
+  ) {
     const skip = (page - 1) * limit;
-    const where = status ? { status } : {};
+    const where: Record<string, unknown> = {};
+
+    if (filters.status) where.status = filters.status;
+    if (filters.paymentMethod) where.paymentMethod = filters.paymentMethod;
+    if (filters.paymentStatus) where.paymentStatus = filters.paymentStatus;
+
+    if (filters.dateFrom || filters.dateTo) {
+      const createdAt: { gte?: Date; lte?: Date } = {};
+      if (filters.dateFrom) {
+        const from = new Date(`${filters.dateFrom}T00:00:00`);
+        if (!Number.isNaN(from.getTime())) createdAt.gte = from;
+      }
+      if (filters.dateTo) {
+        const to = new Date(`${filters.dateTo}T23:59:59.999`);
+        if (!Number.isNaN(to.getTime())) createdAt.lte = to;
+      }
+      if (createdAt.gte || createdAt.lte) where.createdAt = createdAt;
+    }
+
+    const q = filters.q?.trim();
+    if (q) {
+      where.OR = [
+        { orderNumber: { contains: q, mode: 'insensitive' } },
+        { paytabsTranRef: { contains: q, mode: 'insensitive' } },
+        { user: { email: { contains: q, mode: 'insensitive' } } },
+        { user: { firstName: { contains: q, mode: 'insensitive' } } },
+        { user: { lastName: { contains: q, mode: 'insensitive' } } },
+        { user: { phone: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
+
     const [total, orders] = await Promise.all([
       prisma.order.count({ where }),
       prisma.order.findMany({

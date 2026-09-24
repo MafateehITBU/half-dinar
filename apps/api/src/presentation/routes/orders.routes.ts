@@ -63,10 +63,24 @@ adminOrdersRouter.get(
   authenticate,
   requirePermission(PERMISSIONS.ORDERS_READ),
   asyncHandler(async (req, res) => {
-    const page = Number(req.query.page ?? 1);
-    const limit = Number(req.query.limit ?? 20);
-    const status = req.query.status as import('@half-dinar/shared').OrderStatus | undefined;
-    const result = await orderService.listAdmin(page, limit, status);
+    const page = Math.max(1, Number(req.query.page ?? 1) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 20) || 20));
+    const status = (req.query.status as import('@half-dinar/shared').OrderStatus | undefined) || undefined;
+    const paymentMethod = (req.query.paymentMethod as 'cod' | 'meps' | 'stripe' | undefined) || undefined;
+    const paymentStatus =
+      (req.query.paymentStatus as 'pending' | 'paid' | 'failed' | 'refunded' | undefined) || undefined;
+    const dateFrom = typeof req.query.dateFrom === 'string' ? req.query.dateFrom : undefined;
+    const dateTo = typeof req.query.dateTo === 'string' ? req.query.dateTo : undefined;
+    const q = typeof req.query.q === 'string' ? req.query.q : undefined;
+
+    const result = await orderService.listAdmin(page, limit, {
+      status,
+      paymentMethod,
+      paymentStatus,
+      dateFrom,
+      dateTo,
+      q,
+    });
     res.json(result);
   }),
 );

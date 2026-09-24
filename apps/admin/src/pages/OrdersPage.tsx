@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { FormEvent, useCallback, useState } from 'react';
 import type { OrderDetail, OrderSummary } from '@half-dinar/shared';
 import { AdminLayout } from '../components/AdminLayout';
 import { PageHeader } from '../components/ui/PageHeader';
@@ -77,25 +77,66 @@ function addressLines(addr: Record<string, unknown> | null | undefined): string[
 
 export function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState('');
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState('');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [search, setSearch] = useState('');
+  const [searchApplied, setSearchApplied] = useState('');
+  const [pageSize, setPageSize] = useState(20);
   const [selected, setSelected] = useState<OrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [newStatus, setNewStatus] = useState('');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const filters = {
+    status: statusFilter || undefined,
+    paymentMethod: paymentMethodFilter || undefined,
+    paymentStatus: paymentStatusFilter || undefined,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+    q: searchApplied || undefined,
+  };
+
   const fetchOrders = useCallback(
     (p: number, limit: number) =>
-      adminApi.getOrders({ page: p, limit, status: statusFilter || undefined }) as Promise<{
+      adminApi.getOrders({ page: p, limit, ...filters }) as Promise<{
         data: OrderRow[];
         pagination: import('@half-dinar/shared').PaginationMeta;
       }>,
-    [statusFilter],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- filters tracked via deps array below
+    [statusFilter, paymentMethodFilter, paymentStatusFilter, dateFrom, dateTo, searchApplied],
   );
 
-  const { items, setPage, pagination, loading, reload } = usePaginatedList<OrderRow>(
+  const { items, setPage, pagination, loading, reload, error } = usePaginatedList<OrderRow>(
     fetchOrders,
-    [statusFilter],
-    30,
+    [statusFilter, paymentMethodFilter, paymentStatusFilter, dateFrom, dateTo, searchApplied, pageSize],
+    pageSize,
+  );
+
+  const clearFilters = () => {
+    setStatusFilter('');
+    setPaymentMethodFilter('');
+    setPaymentStatusFilter('');
+    setDateFrom('');
+    setDateTo('');
+    setSearch('');
+    setSearchApplied('');
+  };
+
+  const applySearch = (e?: FormEvent) => {
+    e?.preventDefault();
+    setSearchApplied(search.trim());
+  };
+
+  const hasActiveFilters = Boolean(
+    statusFilter ||
+      paymentMethodFilter ||
+      paymentStatusFilter ||
+      dateFrom ||
+      dateTo ||
+      searchApplied,
   );
 
   const closeDetail = () => {
@@ -208,20 +249,111 @@ export function OrdersPage() {
     <AdminLayout>
       <PageHeader title="الطلبات" description="متابعة الدفع (COD / بطاقة) وتحديث حالة الطلبات" />
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="select-field w-52"
-        >
-          <option value="">جميع الحالات</option>
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {STATUS_AR[s] ?? s}
-            </option>
-          ))}
-        </select>
-        {detailLoading && <span className="text-sm text-slate-500">جاري فتح التفاصيل...</span>}
+      <div className="admin-card mb-4 space-y-3 p-4">
+        <form onSubmit={applySearch} className="flex flex-wrap items-end gap-3">
+          <label className="min-w-[14rem] flex-1 text-xs font-semibold text-slate-600">
+            بحث (رقم الطلب / إيميل / اسم / هاتف / مرجع MEPS)
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="مثال: AN2609 أو customer@email.com"
+              className="input-field mt-1"
+            />
+          </label>
+          <button type="submit" className="btn-primary text-sm">
+            بحث
+          </button>
+        </form>
+
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-xs font-semibold text-slate-600">
+            من تاريخ
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="input-field mt-1 w-40"
+            />
+          </label>
+          <label className="text-xs font-semibold text-slate-600">
+            إلى تاريخ
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="input-field mt-1 w-40"
+            />
+          </label>
+          <label className="text-xs font-semibold text-slate-600">
+            حالة الطلب
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="select-field mt-1 w-44"
+            >
+              <option value="">الكل</option>
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {STATUS_AR[s] ?? s}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-slate-600">
+            طريقة الدفع
+            <select
+              value={paymentMethodFilter}
+              onChange={(e) => setPaymentMethodFilter(e.target.value)}
+              className="select-field mt-1 w-48"
+            >
+              <option value="">الكل</option>
+              <option value="cod">عند الاستلام (COD)</option>
+              <option value="meps">بطاقة Visa / Mastercard</option>
+              <option value="stripe">Stripe</option>
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-slate-600">
+            حالة الدفع
+            <select
+              value={paymentStatusFilter}
+              onChange={(e) => setPaymentStatusFilter(e.target.value)}
+              className="select-field mt-1 w-40"
+            >
+              <option value="">الكل</option>
+              <option value="paid">مدفوع</option>
+              <option value="pending">غير مدفوع</option>
+              <option value="failed">فشل</option>
+              <option value="refunded">مسترد</option>
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-slate-600">
+            لكل صفحة
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="select-field mt-1 w-28"
+            >
+              {[10, 20, 30, 50].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+          {hasActiveFilters && (
+            <button type="button" onClick={clearFilters} className="btn-secondary text-sm">
+              مسح الفلاتر
+            </button>
+          )}
+          {detailLoading && <span className="text-sm text-slate-500">جاري فتح التفاصيل...</span>}
+        </div>
+
+        <p className="text-xs text-slate-500">
+          {loading
+            ? 'جاري التحميل...'
+            : `النتيجة: ${pagination.total} طلب · الصفحة ${pagination.page} من ${pagination.totalPages}`}
+        </p>
+        {error && <p className="text-sm text-red-600">{error}</p>}
       </div>
 
       <DataTable
@@ -232,6 +364,7 @@ export function OrdersPage() {
         pagination={pagination}
         onPageChange={setPage}
         onRowClick={(o) => openOrder(o.id)}
+        emptyMessage="لا توجد طلبات مطابقة للفلاتر"
       />
 
       <Modal

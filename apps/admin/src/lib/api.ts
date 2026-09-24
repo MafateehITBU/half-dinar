@@ -274,8 +274,18 @@ export const adminApi = {
     request(`/admin/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteProduct: (id: string) =>
     request(`/admin/products/${id}`, { method: 'DELETE' }),
-  getOrders: (params: { page?: number; limit?: number; status?: string } = {}) =>
-    request<PaginatedResponse<unknown>>(`/admin/orders${buildQuery(params)}`),
+  getOrders: (
+    params: {
+      page?: number;
+      limit?: number;
+      status?: string;
+      paymentMethod?: string;
+      paymentStatus?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      q?: string;
+    } = {},
+  ) => request<PaginatedResponse<unknown>>(`/admin/orders${buildQuery(params)}`),
   getOrder: (id: string) => request<{ data: unknown }>(`/admin/orders/${id}`),
   updateOrderStatus: (id: string, status: string, note?: string) =>
     request(`/admin/orders/${id}/status`, {
