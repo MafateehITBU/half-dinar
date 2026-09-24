@@ -101,7 +101,8 @@ snippet_prod = '''
     }
 
     location @paytabs_return_post {
-        proxy_pass http://abualnus_api/api/v1/checkout/meps/return;
+        rewrite ^ /api/v1/checkout/meps/return break;
+        proxy_pass http://abualnus_api;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -112,8 +113,8 @@ snippet_prod = '''
 '''
 
 snippet_staging = snippet_prod.replace(
-    'http://abualnus_api/api/v1/checkout/meps/return',
-    'http://127.0.0.1:4001/api/v1/checkout/meps/return',
+    'proxy_pass http://abualnus_api;',
+    'proxy_pass http://127.0.0.1:4001;',
 )
 
 roots = [Path('/etc/nginx/sites-enabled'), Path('/etc/nginx/conf.d')]
@@ -124,9 +125,20 @@ for root in roots:
         if not path.is_file():
             continue
         text = path.read_text(encoding='utf-8', errors='ignore')
-        if 'checkout/meps/return' in text:
-            print(f'skip existing {path}')
-            continue
+        # Replace any previous (possibly broken) PayTabs return blocks
+        import re as _re
+        text = _re.sub(
+            r'\n\s*# PayTabs POSTs[\s\S]*?location @paytabs_return_post\s*\{[\s\S]*?\n\s*\}\n',
+            '\n',
+            text,
+            count=1,
+        )
+        text = _re.sub(
+            r'\n\s*location = /checkout/meps/return\s*\{[\s\S]*?\n\s*\}\n\s*location @paytabs_return_post\s*\{[\s\S]*?\n\s*\}\n',
+            '\n',
+            text,
+            count=1,
+        )
         if not any(h in text for h in ('mawjood.online', 'abualnus.com', 'staging.mawjood')):
             continue
         name = path.name.lower()
