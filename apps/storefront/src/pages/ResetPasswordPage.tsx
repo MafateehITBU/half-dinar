@@ -55,7 +55,11 @@ export function ResetPasswordPage() {
           <AuthCard>
             <Icon icon="mdi:link-off" className="text-5xl text-amber-600" />
             <h1 className="mt-4 font-display text-xl font-extrabold">رابط غير صالح</h1>
-            <Link to="/login" className="btn-primary mt-6 inline-flex">تسجيل الدخول</Link>
+            <p className="mt-2 text-sm text-brand-muted">اطلب رابطاً جديداً من صفحة استعادة كلمة المرور.</p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <Link to="/forgot-password" className="btn-primary inline-flex justify-center">طلب رابط جديد</Link>
+              <Link to="/login" className="btn-ghost inline-flex justify-center">تسجيل الدخول</Link>
+            </div>
           </AuthCard>
         </Container>
       </Layout>

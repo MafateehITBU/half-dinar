@@ -11,7 +11,7 @@
 |---------|--------|--------|
 | Email + password signup / login | ✅ Done | JWT access + refresh |
 | Email verification | 🟡 Link only | Move to **6-digit code** (mobile-friendly) |
-| Forgot / reset password | 🟡 API + reset page | Missing forgot-password page; move to **6-digit code** |
+| Forgot / reset password | 🟡 Link flow live | Forgot page + login link deployed; OTP codes still planned |
 | Order confirmation email | ✅ Done | Needs working SMTP |
 | Order status update emails | ❌ Todo | On admin status change |
 | Saved addresses (DB + checkout save) | 🟡 Partial | No account UI / checkout picker |

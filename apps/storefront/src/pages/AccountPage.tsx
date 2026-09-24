@@ -332,7 +332,7 @@ export function AccountPage() {
                 </form>
                 <p className="mt-6 text-sm text-brand-muted">
                   نسيت كلمة المرور؟{' '}
-                  <Link to="/login" className="font-medium text-primary-700 hover:underline">
+                  <Link to="/forgot-password" className="font-medium text-primary-700 hover:underline">
                     استعادة عبر البريد
                   </Link>
                 </p>

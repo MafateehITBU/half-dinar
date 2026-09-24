@@ -157,7 +157,17 @@ export function LoginPage() {
                 <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input-field" dir="ltr" />
               </div>
               <div>
-                <label className="label-field">كلمة المرور *</label>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <label className="label-field mb-0">كلمة المرور *</label>
+                  {mode === 'login' && (
+                    <Link
+                      to="/forgot-password"
+                      className="text-xs font-semibold text-primary-700 hover:underline"
+                    >
+                      نسيت كلمة المرور؟
+                    </Link>
+                  )}
+                </div>
                 <input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="input-field" />
                 {mode === 'register' && <p className="mt-1 text-xs text-brand-muted">8+ أحرف، حرف كبير وصغير ورقم</p>}
               </div>
