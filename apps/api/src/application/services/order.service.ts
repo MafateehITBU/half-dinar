@@ -4,6 +4,7 @@ import { prisma } from '../../config/database.js';
 import { AppError, ErrorCodes } from '../../shared/errors.js';
 import { decimalToNumber } from '../../shared/utils.js';
 import { auditService } from './audit.service.js';
+import { emailService } from './email.service.js';
 import { loyaltyService } from './loyalty.service.js';
 import { referralService } from './referral.service.js';
 
@@ -253,7 +254,35 @@ export const orderService = {
       await referralService.grantOnFirstOrder(order.userId, orderId);
     }
 
+    // Notify customer (non-blocking for admin UX)
+    void this.sendStatusEmail(orderId, toStatus, current, note).catch((err) => {
+      console.error('[email] order status notify failed', orderId, err);
+    });
+
     return this.getById(orderId);
+  },
+
+  async sendStatusEmail(
+    orderId: string,
+    toStatus: OrderStatus,
+    fromStatus: OrderStatus | null,
+    note: string | null,
+  ) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { user: { select: { email: true, firstName: true } } },
+    });
+    if (!order?.user?.email) return false;
+    return emailService.sendOrderStatusUpdate({
+      email: order.user.email,
+      firstName: order.user.firstName || 'عميلنا',
+      orderNumber: order.orderNumber,
+      orderId: order.id,
+      status: toStatus,
+      total: decimalToNumber(order.total),
+      note,
+      previousStatus: fromStatus,
+    });
   },
 
   generateOrderNumber() {

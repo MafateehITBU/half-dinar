@@ -218,6 +218,9 @@ async function markOrderPaid(orderId: string, note: string, tranRef?: string) {
 
   await cartService.clearCart(settled.userId);
   await sendOrderConfirmationEmail(orderId);
+  void orderService
+    .sendStatusEmail(orderId, 'processing', settled.status as 'pending' | 'processing', note)
+    .catch((err) => console.error('[email] MEPS status notify failed', orderId, err));
   return { alreadyPaid: false as const };
 }
 

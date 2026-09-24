@@ -5,6 +5,7 @@ import {
   welcomeEmail,
   passwordResetEmail,
   orderConfirmationEmail,
+  orderStatusUpdateEmail,
 } from './email-templates.js';
 
 let transporter: nodemailer.Transporter | null = null;
@@ -39,6 +40,17 @@ async function sendMail(to: string, subject: string, html: string) {
   return true;
 }
 
+const STATUS_SUBJECT_AR: Record<string, string> = {
+  pending: 'قيد الانتظار',
+  processing: 'قيد المعالجة',
+  paid: 'مدفوع',
+  shipped: 'تم الشحن',
+  delivered: 'تم التسليم',
+  completed: 'مكتمل',
+  cancelled: 'ملغي',
+  refunded: 'مسترد',
+};
+
 export const emailService = {
   isConfigured: () => env.isSmtpConfigured,
 
@@ -66,5 +78,33 @@ export const emailService = {
     const link = `${env.storefrontUrl}/orders/${orderId}`;
     const html = orderConfirmationEmail(firstName, orderNumber, total, link);
     return sendMail(email, `تأكيد الطلب ${orderNumber} — ${BRAND.nameAr}`, html);
+  },
+
+  async sendOrderStatusUpdate(input: {
+    email: string;
+    firstName: string;
+    orderNumber: string;
+    orderId: string;
+    status: string;
+    total: number;
+    note?: string | null;
+    previousStatus?: string | null;
+  }) {
+    const link = `${env.storefrontUrl}/orders/${input.orderId}`;
+    const html = orderStatusUpdateEmail({
+      firstName: input.firstName,
+      orderNumber: input.orderNumber,
+      status: input.status,
+      total: input.total,
+      orderLink: link,
+      note: input.note,
+      previousStatus: input.previousStatus,
+    });
+    const statusLabel = STATUS_SUBJECT_AR[input.status] ?? input.status;
+    return sendMail(
+      input.email,
+      `تحديث الطلب ${input.orderNumber}: ${statusLabel} — ${BRAND.nameAr}`,
+      html,
+    );
   },
 };

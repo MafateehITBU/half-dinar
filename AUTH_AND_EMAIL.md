@@ -13,7 +13,7 @@
 | Email verification | 🟡 Link only | Move to **6-digit code** (mobile-friendly) |
 | Forgot / reset password | 🟡 Link flow live | Forgot page + login link deployed; OTP codes still planned |
 | Order confirmation email | ✅ Done | Needs working SMTP |
-| Order status update emails | ❌ Todo | On admin status change |
+| Order status update emails | ✅ Live | Designed RTL template on every admin status change (+ after MEPS paid) |
 | Saved addresses | ✅ Live | Account «العناوين» + checkout picker + CRUD API |
 | Google Sign-In (Gmail) | ✅ Live | GIS on login; `POST /auth/google`; env on VPS |
 | Easier signup | ✅ Live | Full name; softer password (8+ letter+number); Google CTA |
