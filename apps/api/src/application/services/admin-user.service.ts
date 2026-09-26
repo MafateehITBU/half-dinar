@@ -70,6 +70,32 @@ function normalizeAssignableRoles(requested: string[], actorRoles: string[]): st
   return unique.length ? unique : [ROLES.CUSTOMER];
 }
 
+function isStaffRoleSlug(slug: string) {
+  return slug !== ROLES.CUSTOMER;
+}
+
+/** Non–Super Admin may only mutate customer accounts (no staff password/deactivate/edit). */
+function assertCanMutateUser(
+  targetRoles: string[],
+  actorRoles: string[],
+  action: 'update' | 'deactivate',
+) {
+  const actorIsSuper = actorRoles.includes(ROLES.SUPER_ADMIN);
+  const targetIsStaff = targetRoles.some(isStaffRoleSlug);
+  const targetIsSuper = targetRoles.includes(ROLES.SUPER_ADMIN);
+
+  if (targetIsSuper && (action === 'deactivate' || !actorIsSuper)) {
+    throw new AppError(403, ErrorCodes.FORBIDDEN, 'Cannot modify Super Admin');
+  }
+  if (targetIsStaff && !actorIsSuper) {
+    throw new AppError(
+      403,
+      ErrorCodes.FORBIDDEN,
+      'Only Super Admin can modify staff accounts',
+    );
+  }
+}
+
 export const adminUserService = {
   async list(query: AdminUserListQuery) {
     const { page, limit, search, role, active } = query;
@@ -173,9 +199,12 @@ export const adminUserService = {
   async update(id: string, input: AdminUpdateUserInput, actorRoles: string[] = []) {
     const user = await prisma.user.findUnique({
       where: { id },
-      include: { roles: true },
+      include: { roles: { include: { role: true } } },
     });
     if (!user) throw new AppError(404, ErrorCodes.NOT_FOUND, 'User not found');
+
+    const targetRoles = user.roles.map((r) => r.role.slug);
+    assertCanMutateUser(targetRoles, actorRoles, 'update');
 
     if (input.email && input.email !== user.email) {
       const dup = await prisma.user.findUnique({ where: { email: input.email } });
@@ -193,6 +222,9 @@ export const adminUserService = {
       data.emailVerifiedAt = input.emailVerified ? new Date() : null;
     }
     if (input.password) {
+      if (!actorRoles.includes(ROLES.SUPER_ADMIN) && targetRoles.some(isStaffRoleSlug)) {
+        throw new AppError(403, ErrorCodes.FORBIDDEN, 'Only Super Admin can reset staff passwords');
+      }
       data.passwordHash = await bcrypt.hash(input.password, 12);
     }
 
@@ -217,17 +249,15 @@ export const adminUserService = {
     return this.getById(id);
   },
 
-  async remove(id: string) {
+  async remove(id: string, actorRoles: string[] = []) {
     const user = await prisma.user.findUnique({
       where: { id },
       include: { roles: { include: { role: true } } },
     });
     if (!user) throw new AppError(404, ErrorCodes.NOT_FOUND, 'User not found');
 
-    const isSuperAdmin = user.roles.some((r) => r.role.slug === ROLES.SUPER_ADMIN);
-    if (isSuperAdmin) {
-      throw new AppError(403, ErrorCodes.FORBIDDEN, 'Cannot deactivate super admin');
-    }
+    const targetRoles = user.roles.map((r) => r.role.slug);
+    assertCanMutateUser(targetRoles, actorRoles, 'deactivate');
 
     await prisma.user.update({
       where: { id },

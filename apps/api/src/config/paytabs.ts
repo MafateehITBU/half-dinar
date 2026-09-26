@@ -25,6 +25,7 @@ export type PaytabsHostedResponse = {
   tran_ref?: string;
   redirect_url?: string;
   cart_id?: string;
+  cart_amount?: string | number;
   payment_result?: PaytabsPaymentResult;
   message?: string;
   code?: number | string;
@@ -183,6 +184,24 @@ export function pickPaytabsTranRef(
 ): string | undefined {
   const rows = Array.isArray(result) ? result : [result];
   return rows.find((r) => r.tran_ref)?.tran_ref;
+}
+
+/** Defence-in-depth: paid cart_amount must match order total (JOD). */
+export function assertPaytabsAmountMatches(
+  result: PaytabsHostedResponse | PaytabsHostedResponse[] | { cart_amount?: string | number },
+  orderTotal: number,
+): void {
+  const rows = Array.isArray(result) ? result : [result];
+  const raw = rows.map((r) => r.cart_amount).find((a) => a !== undefined && a !== null && a !== '');
+  if (raw === undefined) return; // older payloads may omit; signature + cart_id still bind
+  const paid = typeof raw === 'string' ? Number.parseFloat(raw) : Number(raw);
+  if (!Number.isFinite(paid) || Math.abs(paid - orderTotal) > 0.02) {
+    throw new AppError(
+      400,
+      ErrorCodes.VALIDATION_ERROR,
+      `مبلغ الدفع لا يطابق الطلب (${paid} ≠ ${orderTotal})`,
+    );
+  }
 }
 
 export function verifyCallbackSignature(rawBody: Buffer | string, signatureHeader: string | undefined): boolean {

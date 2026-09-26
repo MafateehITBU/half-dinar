@@ -7,6 +7,7 @@ import { orderService } from './order.service.js';
 import { promotionService } from './promotion.service.js';
 import { env } from '../../config/env.js';
 import {
+  assertPaytabsAmountMatches,
   createHostedPayment,
   isPaytabsAuthorised,
   pickPaytabsTranRef,
@@ -362,13 +363,16 @@ export const checkoutService = {
             },
           });
 
-          await tx.product.update({
-            where: { id: item.productId },
+          const stocked = await tx.product.updateMany({
+            where: { id: item.productId, stockQuantity: { gte: item.quantity } },
             data: {
               stockQuantity: { decrement: item.quantity },
               soldCount: { increment: item.quantity },
             },
           });
+          if (stocked.count === 0) {
+            throw new AppError(409, ErrorCodes.CONFLICT, `Insufficient stock for ${product.nameAr}`);
+          }
 
           await tx.inventoryHistory.create({
             data: {
@@ -532,6 +536,8 @@ export const checkoutService = {
       throw new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Payment not completed');
     }
 
+    assertPaytabsAmountMatches(result, decimalToNumber(order.total));
+
     const tranRef = pickPaytabsTranRef(result) ?? order.paytabsTranRef ?? undefined;
     await markOrderPaid(orderId, 'MEPS/PayTabs payment confirmed', tranRef);
 
@@ -546,6 +552,7 @@ export const checkoutService = {
     let payload: {
       cart_id?: string;
       tran_ref?: string;
+      cart_amount?: string | number;
       payment_result?: { response_status?: string };
     };
     try {
@@ -568,6 +575,8 @@ export const checkoutService = {
 
     if (!order || order.paymentStatus === 'paid') return;
     if (order.paymentMethod !== 'meps') return;
+
+    assertPaytabsAmountMatches(payload, decimalToNumber(order.total));
 
     await markOrderPaid(
       order.id,

@@ -1,5 +1,6 @@
 import type { CreateRefundInput, ModerateRefundInput } from '@half-dinar/shared';
 import { prisma } from '../../config/database.js';
+import { redis } from '../../config/redis.js';
 import { AppError, ErrorCodes } from '../../shared/errors.js';
 import { decimalToNumber } from '../../shared/utils.js';
 import { refundTransaction } from '../../config/paytabs.js';
@@ -65,8 +66,8 @@ function mapRefund(r: {
 
 export const refundService = {
   async create(userId: string, input: CreateRefundInput) {
-    const order = await prisma.order.findUnique({
-      where: { id: input.orderId },
+    const order = await prisma.order.findFirst({
+      where: { id: input.orderId, deletedAt: null },
       include: { refundRequests: true },
     });
     if (!order || order.userId !== userId) {
@@ -159,117 +160,145 @@ export const refundService = {
   },
 
   async moderate(refundId: string, adminUserId: string, input: ModerateRefundInput, ip?: string) {
-    const refund = await prisma.refundRequest.findUnique({
-      where: { id: refundId },
-      include: {
-        order: true,
-        evidence: true,
-        user: { select: { email: true, firstName: true } },
-      },
-    });
-    if (!refund) throw new AppError(404, ErrorCodes.NOT_FOUND, 'Refund request not found');
-
-    if (['approved', 'rejected'].includes(refund.status)) {
-      throw new AppError(400, ErrorCodes.VALIDATION_ERROR, 'تم البت في هذا الطلب مسبقاً');
+    const lockKey = `refund:moderate:${refundId}`;
+    const locked = await redis.set(lockKey, adminUserId, 'EX', 120, 'NX');
+    if (locked !== 'OK') {
+      throw new AppError(409, ErrorCodes.CONFLICT, 'جاري معالجة هذا الطلب من قبل مشرف آخر');
     }
 
-    let cardRefundNote: string | null = null;
+    try {
+      const refund = await prisma.refundRequest.findUnique({
+        where: { id: refundId },
+        include: {
+          order: true,
+          evidence: true,
+          user: { select: { email: true, firstName: true } },
+        },
+      });
+      if (!refund) throw new AppError(404, ErrorCodes.NOT_FOUND, 'Refund request not found');
 
-    if (input.status === 'approved' && refund.status !== 'approved') {
-      const order = refund.order;
-      const isCardPaid =
-        order.paymentMethod === 'meps' &&
-        order.paymentStatus === 'paid' &&
-        Boolean(order.paytabsTranRef);
-      const wantCardApi = (input.cardRefund ?? 'auto') === 'auto';
+      if (['approved', 'rejected'].includes(refund.status)) {
+        throw new AppError(400, ErrorCodes.VALIDATION_ERROR, 'تم البت في هذا الطلب مسبقاً');
+      }
 
-      if (isCardPaid && wantCardApi) {
-        if (!env.isMepsConfigured) {
+      // Atomic claim: only one approver can leave open status
+      const claimed = await prisma.refundRequest.updateMany({
+        where: {
+          id: refundId,
+          status: { in: ['requested', 'under_review'] },
+        },
+        data: { status: 'under_review' },
+      });
+      if (claimed.count === 0) {
+        throw new AppError(400, ErrorCodes.VALIDATION_ERROR, 'تم البت في هذا الطلب مسبقاً');
+      }
+
+      let cardRefundNote: string | null = null;
+
+      if (input.status === 'approved') {
+        const order = refund.order;
+        if (refund.adminNotes?.includes('PayTabs refund OK')) {
+          throw new AppError(409, ErrorCodes.CONFLICT, 'تم استرداد البطاقة مسبقاً لهذا الطلب');
+        }
+        const isCardPaid =
+          order.paymentMethod === 'meps' &&
+          order.paymentStatus === 'paid' &&
+          Boolean(order.paytabsTranRef);
+        const wantCardApi = (input.cardRefund ?? 'auto') === 'auto';
+
+        if (isCardPaid && wantCardApi) {
+          if (!env.isMepsConfigured) {
+            throw new AppError(
+              503,
+              ErrorCodes.VALIDATION_ERROR,
+              'لا يمكن استرداد البطاقة: مفاتيح PayTabs غير مُعدّة',
+            );
+          }
+          const amount = decimalToNumber(order.total);
+          const result = await refundTransaction({
+            originalTranRef: order.paytabsTranRef!,
+            cartId: order.id,
+            amount,
+            description: `Refund ${order.orderNumber}: ${refund.reason.slice(0, 80)}`,
+          });
+          cardRefundNote = `PayTabs refund OK · ref ${result.tranRef}`;
+        } else if (isCardPaid && !wantCardApi) {
+          cardRefundNote =
+            'موافقة يدوية — استرداد البطاقة من لوحة MEPS/PayTabs (API غير مستخدم أو غير مدعوم)';
+        } else if (order.paymentMethod === 'meps' && order.paymentStatus !== 'paid') {
           throw new AppError(
-            503,
+            400,
             ErrorCodes.VALIDATION_ERROR,
-            'لا يمكن استرداد البطاقة: مفاتيح PayTabs غير مُعدّة',
+            'طلب البطاقة غير مدفوع — لا يمكن استرداد عبر PayTabs',
           );
         }
-        const amount = decimalToNumber(order.total);
-        const result = await refundTransaction({
-          originalTranRef: order.paytabsTranRef!,
-          cartId: order.id,
-          amount,
-          description: `Refund ${order.orderNumber}: ${refund.reason.slice(0, 80)}`,
+
+        if (order.status !== 'refunded') {
+          await orderService.updateStatus(
+            refund.orderId,
+            'refunded',
+            cardRefundNote
+              ? `استرداد موافق — ${cardRefundNote}`
+              : 'استرداد موافق (COD / يدوي)',
+            adminUserId,
+          );
+        }
+        await prisma.order.update({
+          where: { id: refund.orderId },
+          data: { paymentStatus: 'refunded' },
         });
-        cardRefundNote = `PayTabs refund OK · ref ${result.tranRef}`;
-      } else if (isCardPaid && !wantCardApi) {
-        cardRefundNote =
-          'موافقة يدوية — استرداد البطاقة من لوحة MEPS/PayTabs (API غير مستخدم أو غير مدعوم)';
-      } else if (order.paymentMethod === 'meps' && order.paymentStatus !== 'paid') {
-        throw new AppError(
-          400,
-          ErrorCodes.VALIDATION_ERROR,
-          'طلب البطاقة غير مدفوع — لا يمكن استرداد عبر PayTabs',
-        );
       }
 
-      if (order.status !== 'refunded') {
-        await orderService.updateStatus(
-          refund.orderId,
-          'refunded',
-          cardRefundNote
-            ? `استرداد موافق — ${cardRefundNote}`
-            : 'استرداد موافق (COD / يدوي)',
-          adminUserId,
-        );
-      }
-      await prisma.order.update({
-        where: { id: refund.orderId },
-        data: { paymentStatus: 'refunded' },
+      const adminNotes = [input.adminNotes?.trim(), cardRefundNote].filter(Boolean).join(' · ') || null;
+
+      const updated = await prisma.refundRequest.update({
+        where: { id: refundId },
+        data: {
+          status: input.status,
+          adminNotes,
+        },
+        include: { evidence: true, order: true },
       });
-    }
 
-    const adminNotes = [input.adminNotes?.trim(), cardRefundNote].filter(Boolean).join(' · ') || null;
-
-    const updated = await prisma.refundRequest.update({
-      where: { id: refundId },
-      data: {
-        status: input.status,
-        adminNotes,
-      },
-      include: { evidence: true, order: true },
-    });
-
-    await auditService.log({
-      userId: adminUserId,
-      action: `refund.${input.status}`,
-      entityType: 'refund_request',
-      entityId: refundId,
-      metadata: {
-        orderId: refund.orderId,
-        adminNotes,
-        cardRefund: Boolean(cardRefundNote),
-      },
-      ip,
-    });
-
-    if (refund.user?.email && (input.status === 'approved' || input.status === 'rejected')) {
-      void emailService
-        .sendOrderStatusUpdate({
-          email: refund.user.email,
-          firstName: refund.user.firstName || 'عميلنا',
-          orderNumber: refund.order.orderNumber,
+      await auditService.log({
+        userId: adminUserId,
+        action: `refund.${input.status}`,
+        entityType: 'refund_request',
+        entityId: refundId,
+        metadata: {
           orderId: refund.orderId,
-          status: input.status === 'approved' ? 'refunded' : refund.order.status,
-          total: decimalToNumber(refund.order.total),
-          note:
-            input.status === 'approved'
-              ? cardRefundNote
-                ? 'تمت الموافقة على الاسترداد وإرجاع المبلغ إلى البطاقة.'
-                : 'تمت الموافقة على الاسترداد. سيتم التنسيق معك لإرجاع المبلغ (دفع عند الاستلام).'
-              : `تم رفض طلب الاسترداد.${input.adminNotes ? ` السبب: ${input.adminNotes}` : ''}`,
-          previousStatus: refund.order.status,
-        })
-        .catch((err) => console.error('[email] refund decision notify failed', refundId, err));
-    }
+          adminNotes,
+          cardRefund: Boolean(cardRefundNote),
+        },
+        ip,
+      });
 
-    return mapRefund(updated);
+      if (refund.user?.email && (input.status === 'approved' || input.status === 'rejected')) {
+        void emailService
+          .sendOrderStatusUpdate({
+            email: refund.user.email,
+            firstName: refund.user.firstName || 'عميلنا',
+            orderNumber: refund.order.orderNumber,
+            orderId: refund.orderId,
+            status: input.status === 'approved' ? 'refunded' : refund.order.status,
+            total: decimalToNumber(refund.order.total),
+            note:
+              input.status === 'approved'
+                ? cardRefundNote
+                  ? 'تمت الموافقة على الاسترداد وإرجاع المبلغ إلى البطاقة.'
+                  : 'تمت الموافقة على الاسترداد. سيتم التنسيق معك لإرجاع المبلغ (دفع عند الاستلام).'
+                : `تم رفض طلب الاسترداد.${input.adminNotes ? ` السبب: ${input.adminNotes}` : ''}`,
+            previousStatus: refund.order.status,
+          })
+          .catch((err) => console.error('[email] refund decision notify failed', refundId, err));
+      }
+
+      return mapRefund(updated);
+    } catch (err) {
+      // Leave under_review on PayTabs failure so retry is explicit; unlock Redis so another admin can retry
+      throw err;
+    } finally {
+      await redis.del(lockKey).catch(() => undefined);
+    }
   },
 };

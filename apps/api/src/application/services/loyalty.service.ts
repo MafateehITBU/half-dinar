@@ -157,4 +157,40 @@ export const loyaltyService = {
       }),
     ]);
   },
+
+  /** Undo earn when an order is deleted after points were granted. */
+  async clawbackEarnForOrder(orderId: string) {
+    const earn = await prisma.loyaltyTransaction.findFirst({
+      where: { orderId, type: 'earn' },
+    });
+    if (!earn || earn.points <= 0) return;
+
+    const already = await prisma.loyaltyTransaction.findFirst({
+      where: { orderId, type: 'earn_clawback' },
+    });
+    if (already) return;
+
+    const account = await prisma.loyaltyAccount.findUnique({ where: { id: earn.accountId } });
+    if (!account) return;
+
+    await prisma.$transaction([
+      prisma.loyaltyAccount.update({
+        where: { id: account.id },
+        data: { pointsBalance: { decrement: earn.points } },
+      }),
+      prisma.loyaltyTransaction.create({
+        data: {
+          accountId: account.id,
+          type: 'earn_clawback',
+          points: -earn.points,
+          orderId,
+          description: 'Clawed back after order deletion',
+        },
+      }),
+      prisma.order.update({
+        where: { id: orderId },
+        data: { loyaltyPointsEarned: 0 },
+      }),
+    ]);
+  },
 };

@@ -292,6 +292,8 @@ export const adminApi = {
       method: 'PATCH',
       body: JSON.stringify({ status, note }),
     }),
+  deleteOrder: (id: string) =>
+    request<{ data: { id: string; deleted: boolean } }>(`/admin/orders/${id}`, { method: 'DELETE' }),
   getCoupons: () => request<{ data: unknown[] }>('/admin/promotions/coupons'),
   createCoupon: (data: Record<string, unknown>) =>
     request('/admin/promotions/coupons', { method: 'POST', body: JSON.stringify(data) }),

@@ -78,7 +78,8 @@ adminUsersRouter.delete(
   authenticate,
   requirePermission(PERMISSIONS.CUSTOMERS_WRITE),
   asyncHandler(async (req, res) => {
-    await adminUserService.remove(param(req.params.id));
+    const actor = (req as AuthenticatedRequest).user!;
+    await adminUserService.remove(param(req.params.id), actor.roles);
     res.status(204).send();
   }),
 );

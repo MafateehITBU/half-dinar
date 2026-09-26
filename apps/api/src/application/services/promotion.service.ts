@@ -92,7 +92,7 @@ export const promotionService = {
     }
 
     const userUses = await prisma.order.count({
-      where: { userId, couponId: coupon.id, status: { not: 'cancelled' } },
+      where: { userId, couponId: coupon.id, status: { not: 'cancelled' }, deletedAt: null },
     });
     if (userUses >= coupon.perUserLimit) {
       throw new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Coupon usage limit reached for your account');
@@ -119,7 +119,8 @@ export const promotionService = {
         .map((r) => r.restrictionId);
 
       eligibleSubtotal = cart.items.reduce((sum, item) => {
-        if (!item.productId) return sum + item.lineTotal;
+        // Restricted coupons: packages are not auto-eligible (avoid unrestricted package discount)
+        if (!item.productId) return sum;
         const product = products.find((p) => p.id === item.productId);
         if (!product) return sum;
         const categoryMatch =

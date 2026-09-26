@@ -7,6 +7,7 @@ import { auditService } from './audit.service.js';
 import { emailService } from './email.service.js';
 import { loyaltyService } from './loyalty.service.js';
 import { referralService } from './referral.service.js';
+import { inventoryService } from './inventory.service.js';
 
 type OrderWithRelations = Order & {
   items: OrderItem[];
@@ -84,8 +85,8 @@ export const orderService = {
   mapOrderDetail,
 
   async getById(orderId: string, userId?: string): Promise<OrderDetail> {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, deletedAt: null },
       include: { items: true, statusHistory: { orderBy: { createdAt: 'asc' } } },
     });
     if (!order) throw new AppError(404, ErrorCodes.NOT_FOUND, 'Order not found');
@@ -97,10 +98,11 @@ export const orderService = {
 
   async listForUser(userId: string, page = 1, limit = 10) {
     const skip = (page - 1) * limit;
+    const where = { userId, deletedAt: null };
     const [total, orders] = await Promise.all([
-      prisma.order.count({ where: { userId } }),
+      prisma.order.count({ where }),
       prisma.order.findMany({
-        where: { userId },
+        where,
         include: { items: true },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -126,7 +128,7 @@ export const orderService = {
     } = {},
   ) {
     const skip = (page - 1) * limit;
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { deletedAt: null };
 
     if (filters.status) where.status = filters.status;
     if (filters.paymentMethod) where.paymentMethod = filters.paymentMethod;
@@ -189,7 +191,10 @@ export const orderService = {
   },
 
   async updateStatus(orderId: string, toStatus: OrderStatus, note: string | null, adminUserId: string) {
-    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { items: true } });
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, deletedAt: null },
+      include: { items: true },
+    });
     if (!order) throw new AppError(404, ErrorCodes.NOT_FOUND, 'Order not found');
 
     const current = order.status as OrderStatus;
@@ -221,23 +226,7 @@ export const orderService = {
       });
 
       if (toStatus === 'cancelled' || toStatus === 'refunded') {
-        for (const item of order.items) {
-          if (item.productId) {
-            await tx.product.update({
-              where: { id: item.productId },
-              data: { stockQuantity: { increment: item.quantity } },
-            });
-            await tx.inventoryHistory.create({
-              data: {
-                productId: item.productId,
-                changeQty: item.quantity,
-                reason: toStatus === 'refunded' ? 'refund' : 'adjustment',
-                referenceId: orderId,
-                adminUserId,
-              },
-            });
-          }
-        }
+        await inventoryService.restoreOrderStock(tx, order.items, orderId, adminUserId, toStatus);
       }
     });
 
@@ -248,6 +237,12 @@ export const orderService = {
       entityId: orderId,
       metadata: { from: current, to: toStatus, note },
     });
+
+    if (toStatus === 'cancelled' || toStatus === 'refunded') {
+      if (order.loyaltyPointsUsed > 0) {
+        await loyaltyService.restoreForOrder(order.userId, order.loyaltyPointsUsed, orderId);
+      }
+    }
 
     if (toStatus === 'delivered' || toStatus === 'completed') {
       await loyaltyService.earnFromOrder(orderId);
@@ -260,6 +255,79 @@ export const orderService = {
     });
 
     return this.getById(orderId);
+  },
+
+  /**
+   * Soft-delete an order. Removes it from lists and dashboard stats.
+   * Restores stock/loyalty when the order had not already been cancelled/refunded.
+   */
+  async delete(orderId: string, adminUserId: string) {
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, deletedAt: null },
+      include: { items: true },
+    });
+    if (!order) throw new AppError(404, ErrorCodes.NOT_FOUND, 'Order not found');
+
+    const alreadyRestoredStock = ['cancelled', 'refunded'].includes(order.status);
+
+    await prisma.$transaction(async (tx) => {
+      if (!alreadyRestoredStock) {
+        await inventoryService.restoreOrderStock(tx, order.items, orderId, adminUserId, 'cancelled');
+      }
+
+      if (order.couponId) {
+        await tx.coupon.updateMany({
+          where: { id: order.couponId, usedCount: { gt: 0 } },
+          data: { usedCount: { decrement: 1 } },
+        });
+      }
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: { deletedAt: new Date() },
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId,
+          fromStatus: order.status,
+          toStatus: order.status,
+          note: 'تم حذف الطلب من لوحة التحكم (لا يُحتسب في الإحصائيات)',
+          createdBy: adminUserId,
+        },
+      });
+
+      // Close open refund requests so they leave the pending queue
+      await tx.refundRequest.updateMany({
+        where: {
+          orderId,
+          status: { in: ['requested', 'under_review'] },
+        },
+        data: {
+          status: 'rejected',
+          adminNotes: 'رُفض تلقائياً بسبب حذف الطلب',
+        },
+      });
+    });
+
+    if (order.loyaltyPointsUsed > 0) {
+      await loyaltyService.restoreForOrder(order.userId, order.loyaltyPointsUsed, orderId);
+    }
+    await loyaltyService.clawbackEarnForOrder(orderId);
+
+    await auditService.log({
+      userId: adminUserId,
+      action: 'order.delete',
+      entityType: 'order',
+      entityId: orderId,
+      metadata: {
+        orderNumber: order.orderNumber,
+        status: order.status,
+        total: decimalToNumber(order.total),
+      },
+    });
+
+    return { id: orderId, deleted: true };
   },
 
   async sendStatusEmail(

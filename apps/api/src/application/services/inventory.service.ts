@@ -118,16 +118,16 @@ export const inventoryService = {
     });
     for (const item of items) {
       const dec = item.quantity * packageQty;
-      if (item.product.stockQuantity < dec) {
-        throw new AppError(409, ErrorCodes.CONFLICT, `Insufficient stock for ${item.product.nameAr}`);
-      }
-      await tx.product.update({
-        where: { id: item.productId },
+      const updated = await tx.product.updateMany({
+        where: { id: item.productId, stockQuantity: { gte: dec } },
         data: {
           stockQuantity: { decrement: dec },
           soldCount: { increment: dec },
         },
       });
+      if (updated.count === 0) {
+        throw new AppError(409, ErrorCodes.CONFLICT, `Insufficient stock for ${item.product.nameAr}`);
+      }
       await tx.inventoryHistory.create({
         data: {
           productId: item.productId,
@@ -136,6 +136,67 @@ export const inventoryService = {
           referenceId: orderId,
         },
       });
+    }
+  },
+
+  /** Restore product + package component stock after cancel/refund. */
+  async restoreOrderStock(
+    tx: Prisma.TransactionClient,
+    items: Array<{ productId: string | null; packageId: string | null; quantity: number }>,
+    orderId: string,
+    adminUserId: string | null,
+    toStatus: 'cancelled' | 'refunded',
+  ) {
+    const already = await tx.inventoryHistory.findFirst({
+      where: {
+        referenceId: orderId,
+        changeQty: { gt: 0 },
+        reason: { in: ['refund', 'adjustment'] },
+      },
+    });
+    if (already) return;
+
+    const reason = toStatus === 'refunded' ? 'refund' : 'adjustment';
+    for (const item of items) {
+      if (item.productId) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: {
+            stockQuantity: { increment: item.quantity },
+            soldCount: { decrement: item.quantity },
+          },
+        });
+        await tx.inventoryHistory.create({
+          data: {
+            productId: item.productId,
+            changeQty: item.quantity,
+            reason,
+            referenceId: orderId,
+            adminUserId: adminUserId ?? undefined,
+          },
+        });
+      } else if (item.packageId) {
+        const pkgItems = await tx.packageItem.findMany({ where: { packageId: item.packageId } });
+        for (const pi of pkgItems) {
+          const inc = pi.quantity * item.quantity;
+          await tx.product.update({
+            where: { id: pi.productId },
+            data: {
+              stockQuantity: { increment: inc },
+              soldCount: { decrement: inc },
+            },
+          });
+          await tx.inventoryHistory.create({
+            data: {
+              productId: pi.productId,
+              changeQty: inc,
+              reason,
+              referenceId: orderId,
+              adminUserId: adminUserId ?? undefined,
+            },
+          });
+        }
+      }
     }
   },
 };

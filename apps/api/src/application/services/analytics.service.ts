@@ -10,6 +10,7 @@ export const analyticsService = {
     const orders = await prisma.order.findMany({
       where: {
         createdAt: { gte: since },
+        deletedAt: null,
         status: { notIn: ['cancelled'] },
       },
       select: {
@@ -65,7 +66,10 @@ export const analyticsService = {
     }));
 
     const pendingRefunds = await prisma.refundRequest.count({
-      where: { status: { in: ['requested', 'under_review'] } },
+      where: {
+        status: { in: ['requested', 'under_review'] },
+        order: { deletedAt: null },
+      },
     });
 
     const lowStock = await inventoryService.getLowStockAlerts();

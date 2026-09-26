@@ -28,13 +28,27 @@ export function authenticate(
   }
 
   const token = header.slice(7);
-  try {
-    const payload = jwt.verify(token, env.JWT_ACCESS_SECRET) as JwtPayload;
-    req.user = payload;
-    next();
-  } catch {
-    next(new AppError(401, ErrorCodes.UNAUTHORIZED, 'Invalid or expired access token'));
-  }
+  void (async () => {
+    try {
+      const payload = jwt.verify(token, env.JWT_ACCESS_SECRET) as JwtPayload;
+      const dbUser = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { isActive: true },
+      });
+      if (!dbUser?.isActive) {
+        next(new AppError(401, ErrorCodes.UNAUTHORIZED, 'الحساب غير نشط أو غير موجود'));
+        return;
+      }
+      req.user = payload;
+      next();
+    } catch (err) {
+      if (err instanceof AppError) {
+        next(err);
+        return;
+      }
+      next(new AppError(401, ErrorCodes.UNAUTHORIZED, 'Invalid or expired access token'));
+    }
+  })();
 }
 
 export function optionalAuthenticate(
@@ -49,12 +63,21 @@ export function optionalAuthenticate(
   }
 
   const token = header.slice(7);
-  try {
-    req.user = jwt.verify(token, env.JWT_ACCESS_SECRET) as JwtPayload;
-  } catch {
-    // ignore invalid token for optional auth
-  }
-  next();
+  void (async () => {
+    try {
+      const payload = jwt.verify(token, env.JWT_ACCESS_SECRET) as JwtPayload;
+      const dbUser = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { isActive: true },
+      });
+      if (dbUser?.isActive) {
+        req.user = payload;
+      }
+    } catch {
+      // ignore invalid token for optional auth
+    }
+    next();
+  })();
 }
 
 export function requirePermission(...permissions: string[]) {
@@ -62,11 +85,6 @@ export function requirePermission(...permissions: string[]) {
     try {
       if (!req.user) {
         next(new AppError(401, ErrorCodes.UNAUTHORIZED, 'Authentication required'));
-        return;
-      }
-
-      if (req.user.roles.includes(ROLES.SUPER_ADMIN)) {
-        next();
         return;
       }
 
@@ -80,6 +98,15 @@ export function requirePermission(...permissions: string[]) {
           },
         },
       });
+
+      const roleSlugs = userRoles.map((ur) => ur.role.slug);
+      // Prefer live DB roles over JWT (covers demotion within access-token lifetime)
+      req.user.roles = roleSlugs;
+
+      if (roleSlugs.includes(ROLES.SUPER_ADMIN)) {
+        next();
+        return;
+      }
 
       const userPermissions = new Set<string>();
       for (const ur of userRoles) {

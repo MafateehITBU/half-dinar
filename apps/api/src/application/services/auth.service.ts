@@ -418,7 +418,7 @@ export const authService = {
     let lastName = family || full.split(/\s+/).slice(1).join(' ') || '';
 
     let user = await prisma.user.findFirst({
-      where: { OR: [{ googleSub }, { email }] },
+      where: { googleSub },
       include: {
         roles: {
           include: {
@@ -431,6 +431,34 @@ export const authService = {
         },
       },
     });
+
+    if (!user) {
+      const byEmail = await prisma.user.findUnique({
+        where: { email },
+        include: {
+          roles: {
+            include: {
+              role: {
+                include: {
+                  permissions: { include: { permission: true } },
+                },
+              },
+            },
+          },
+        },
+      });
+      if (byEmail) {
+        // Do not hijack an unverified password account (attacker could have registered first)
+        if (byEmail.passwordHash && !byEmail.emailVerifiedAt) {
+          throw new AppError(
+            409,
+            ErrorCodes.CONFLICT,
+            'هذا البريد مسجّل مسبقاً ولم يُفعَّل. سجّل الدخول بكلمة المرور أو أكمل تفعيل البريد قبل ربط Google',
+          );
+        }
+        user = byEmail;
+      }
+    }
 
     if (user) {
       if (!user.isActive) {

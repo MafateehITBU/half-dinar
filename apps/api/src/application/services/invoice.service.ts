@@ -4,9 +4,18 @@ import { prisma } from '../../config/database.js';
 import { AppError, ErrorCodes } from '../../shared/errors.js';
 import { decimalToNumber } from '../../shared/utils.js';
 
+function escapeHtml(s: string) {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 async function loadOrderForInvoice(orderId: string, userId?: string) {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, deletedAt: null },
     include: {
       items: true,
       user: { select: { email: true, firstName: true, lastName: true, phone: true } },
@@ -45,8 +54,8 @@ export const invoiceService = {
       .map(
         (i) => `
       <tr>
-        <td>${i.name}</td>
-        <td>${i.sku ?? '—'}</td>
+        <td>${escapeHtml(i.name)}</td>
+        <td>${escapeHtml(i.sku ?? '—')}</td>
         <td>${i.quantity}</td>
         <td>${decimalToNumber(i.unitPrice).toFixed(2)}</td>
         <td>${decimalToNumber(i.total).toFixed(2)}</td>
@@ -58,7 +67,7 @@ export const invoiceService = {
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
-  <title>فاتورة ${order.orderNumber}</title>
+  <title>فاتورة ${escapeHtml(order.orderNumber)}</title>
   <style>
     body { font-family: 'Cairo', Tahoma, sans-serif; padding: 40px; color: #0f172a; }
     h1 { color: #0d9488; margin-bottom: 4px; }
@@ -74,12 +83,12 @@ export const invoiceService = {
 </head>
 <body>
   <button class="no-print" onclick="window.print()" style="margin-bottom:20px;padding:8px 16px;background:#0d9488;color:white;border:none;border-radius:6px;cursor:pointer">طباعة / حفظ PDF</button>
-  <h1>${BRAND.nameAr}</h1>
-  <p>${BRAND.nameEn} — فاتورة ضريبية مبسطة</p>
-  <p><strong>رقم الطلب:</strong> ${order.orderNumber}</p>
-  <p><strong>التاريخ:</strong> ${date}</p>
-  <p><strong>العميل:</strong> ${order.user.firstName} ${order.user.lastName} (${order.user.email})</p>
-  <p><strong>عنوان التوصيل:</strong> ${formatAddress(addr)}</p>
+  <h1>${escapeHtml(BRAND.nameAr)}</h1>
+  <p>${escapeHtml(BRAND.nameEn)} — فاتورة ضريبية مبسطة</p>
+  <p><strong>رقم الطلب:</strong> ${escapeHtml(order.orderNumber)}</p>
+  <p><strong>التاريخ:</strong> ${escapeHtml(date)}</p>
+  <p><strong>العميل:</strong> ${escapeHtml(order.user.firstName)} ${escapeHtml(order.user.lastName)} (${escapeHtml(order.user.email)})</p>
+  <p><strong>عنوان التوصيل:</strong> ${escapeHtml(formatAddress(addr))}</p>
   <p><strong>طريقة الدفع:</strong> ${order.paymentMethod === 'cod' ? 'الدفع عند الاستلام' : 'بطاقة (MEPS)'}</p>
   <table>
     <thead>
@@ -94,7 +103,7 @@ export const invoiceService = {
     ${order.loyaltyPointsUsed > 0 ? `<div><span>نقاط ولاء (${order.loyaltyPointsUsed})</span><span>—</span></div>` : ''}
     <div class="total"><span>الإجمالي</span><span>${total.toFixed(2)} ${BRAND.currency}</span></div>
   </div>
-  <p style="margin-top:40px;font-size:12px;color:#64748b">شكراً لتسوقكم من ${BRAND.nameAr}</p>
+  <p style="margin-top:40px;font-size:12px;color:#64748b">شكراً لتسوقكم من ${escapeHtml(BRAND.nameAr)}</p>
 </body>
 </html>`;
   },

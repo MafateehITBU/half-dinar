@@ -38,6 +38,7 @@ export const referralService = {
     const completedOrders = await prisma.order.count({
       where: {
         userId,
+        deletedAt: null,
         status: { in: ['delivered', 'completed'] },
       },
     });

@@ -133,3 +133,16 @@ adminOrdersRouter.patch(
     res.json({ data: order });
   }),
 );
+
+adminOrdersRouter.delete(
+  '/:id',
+  authenticate,
+  requirePermission(PERMISSIONS.ORDERS_WRITE),
+  asyncHandler(async (req, res) => {
+    const result = await orderService.delete(
+      param(req.params.id),
+      (req as AuthenticatedRequest).user!.sub,
+    );
+    res.json({ data: result });
+  }),
+);

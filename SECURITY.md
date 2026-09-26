@@ -40,18 +40,20 @@
 - `cart_token`: HttpOnly, Secure (prod), SameSite=Lax
 - Access/refresh currently in localStorage (XSS surface); prefer memory + httpOnly refresh in a follow-up
 
-## Payments (Visa / Stripe)
-- Stripe Payment Element — **no card PAN on our servers** (PCI SAQ A posture)
-- PaymentIntent created server-side; confirm + webhook paths
-- Webhook: `constructEvent` signature verify; bind `intent.id` to order; amount sanity check
-- Never log card data; store only `stripePaymentIntentId` + payment status
+## Payments (Visa / MEPS PayTabs)
+- Hosted Payment Page — **no card PAN on our servers** (PCI SAQ A posture)
+- Payment created server-side with cart total; return bridge + signed callback
+- Callback: HMAC signature verify (`timingSafeEqual`); bind `cart_id` / `tran_ref` to order; amount sanity check when PayTabs sends `cart_amount`
+- Never log card data; store only `paytabsTranRef` + payment status
 - COD remains available (out of card PCI scope)
+- Apple Pay / acquirer codes that block API refund: approve manually + refund in MEPS dashboard
 
 ## Refund anti-fraud
 - Evidence images supported (Cloudinary)
 - One open refund request per order
-- Admin approval mandatory
+- Admin approval mandatory; Redis lock + status claim against double PayTabs refund
 - Audit log on approve/reject
+- Staff accounts: only Super Admin may reset passwords or deactivate
 
 ## Audit & compliance
 - Audit log for order status + refund moderation (expand to all admin writes over time)

@@ -9,7 +9,7 @@ import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { usePaginatedList } from '../hooks/usePaginatedList';
 import { adminApi, openAdminOrderInvoice } from '../lib/api';
-import { showToastError, showToastSuccess } from '../lib/confirm';
+import { confirmDelete, showToastError, showToastSuccess } from '../lib/confirm';
 
 const STATUSES = ['pending', 'processing', 'paid', 'shipped', 'delivered', 'completed', 'cancelled', 'refunded'] as const;
 
@@ -103,6 +103,7 @@ export function OrdersPage() {
   const [newStatus, setNewStatus] = useState('');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const filters = {
     status: statusFilter || undefined,
@@ -194,6 +195,25 @@ export function OrdersPage() {
     }
   };
 
+  const deleteOrder = async (id: string, orderNumber: string) => {
+    const ok = await confirmDelete(
+      `حذف الطلب ${orderNumber}؟ سيُزال من القائمة والإحصائيات، ويُعاد المخزون ونقاط الولاء إن لزم.`,
+      'حذف الطلب',
+    );
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      await adminApi.deleteOrder(id);
+      closeDetail();
+      await reload();
+      await showToastSuccess(`تم حذف الطلب ${orderNumber}`);
+    } catch (err) {
+      await showToastError(err instanceof Error ? err.message : 'فشل حذف الطلب');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const allowedStatuses = useMemo(() => {
     if (!selected) return [...STATUSES];
     const next = NEXT_STATUSES[selected.status] ?? [];
@@ -265,6 +285,12 @@ export function OrdersPage() {
               icon: 'mdi:eye-outline',
               variant: 'edit',
               onClick: () => openOrder(o.id),
+            },
+            {
+              label: 'حذف',
+              icon: 'mdi:trash-can-outline',
+              variant: 'danger',
+              onClick: () => void deleteOrder(o.id, o.orderNumber),
             },
           ]}
         />
@@ -545,7 +571,7 @@ export function OrdersPage() {
                   <button
                     type="button"
                     onClick={() => void updateStatus()}
-                    disabled={saving || allowedStatuses.length <= 1}
+                    disabled={saving || deleting || allowedStatuses.length <= 1}
                     className="btn-primary flex-1 disabled:opacity-50"
                   >
                     {saving ? 'جاري الحفظ...' : 'حفظ الحالة'}
@@ -554,6 +580,17 @@ export function OrdersPage() {
                     إغلاق
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => void deleteOrder(selected.id, selected.orderNumber)}
+                  disabled={saving || deleting}
+                  className="mt-3 w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                >
+                  {deleting ? 'جاري الحذف...' : 'حذف الطلب من الإحصائيات'}
+                </button>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  الحذف يُخرج الطلب من لوحة الإحصائيات ويعيد المخزون ونقاط الولاء عند الحاجة.
+                </p>
               </div>
 
               {selected.timeline?.length > 0 && (
